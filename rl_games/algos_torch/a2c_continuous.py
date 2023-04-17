@@ -53,9 +53,6 @@ class A2CAgent(a2c_common.ContinuousA2CBase):
         checkpoint = torch_ext.load_checkpoint(fn)
         self.set_full_state_weights(checkpoint)
 
-    def get_masked_action_values(self, obs, action_masks):
-        assert False
-
     def calc_gradients(self, input_dict):
         value_preds_batch = input_dict['old_values']
         old_action_log_probs_batch = input_dict['old_logp_actions']
@@ -77,13 +74,6 @@ class A2CAgent(a2c_common.ContinuousA2CBase):
         }
 
         rnn_masks = None
-        if self.is_rnn:
-            rnn_masks = input_dict['rnn_masks']
-            batch_dict['rnn_states'] = input_dict['rnn_states']
-            batch_dict['seq_length'] = self.seq_len
-
-            if self.zero_rnn_on_done:
-                batch_dict['dones'] = input_dict['dones']            
 
         with torch.cuda.amp.autocast(enabled=self.mixed_precision):
             res_dict = self.model(batch_dict)
@@ -96,16 +86,12 @@ class A2CAgent(a2c_common.ContinuousA2CBase):
 
             a_loss = self.actor_loss_func(old_action_log_probs_batch, action_log_probs, advantage, self.ppo, curr_e_clip)
 
-            if self.has_value_loss:
-                c_loss = common_losses.critic_loss(value_preds_batch, values, curr_e_clip, return_batch, self.clip_value)
-            else:
-                c_loss = torch.zeros(1, device=self.ppo_device)
-            if self.bound_loss_type == 'regularisation':
-                b_loss = self.reg_loss(mu)
-            elif self.bound_loss_type == 'bound':
-                b_loss = self.bound_loss(mu)
-            else:
-                b_loss = torch.zeros(1, device=self.ppo_device)
+            assert self.has_value_loss
+            c_loss = common_losses.critic_loss(value_preds_batch, values, curr_e_clip, return_batch, self.clip_value)
+
+            assert self.bound_loss_type == 'bound'
+            b_loss = self.bound_loss(mu)
+            
             losses, sum_mask = torch_ext.apply_masks([a_loss.unsqueeze(1), c_loss , entropy.unsqueeze(1), b_loss.unsqueeze(1)], rnn_masks)
             a_loss, c_loss, entropy, b_loss = losses[0], losses[1], losses[2], losses[3]
 
@@ -144,13 +130,6 @@ class A2CAgent(a2c_common.ContinuousA2CBase):
     def train_actor_critic(self, input_dict):
         self.calc_gradients(input_dict)
         return self.train_result
-
-    def reg_loss(self, mu):
-        if self.bounds_loss_coef is not None:
-            reg_loss = (mu*mu).sum(axis=-1)
-        else:
-            reg_loss = 0
-        return reg_loss
 
     def bound_loss(self, mu):
         if self.bounds_loss_coef is not None:

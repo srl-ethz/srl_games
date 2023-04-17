@@ -13,18 +13,9 @@ class RunningMeanStd(nn.Module):
         self.epsilon = epsilon
 
         self.norm_only = norm_only
-        self.per_channel = per_channel
-        if per_channel:
-            if len(self.insize) == 3:
-                self.axis = [0,2,3]
-            if len(self.insize) == 2:
-                self.axis = [0,2]
-            if len(self.insize) == 1:
-                self.axis = [0]
-            in_size = self.insize[0] 
-        else:
-            self.axis = [0]
-            in_size = insize
+        assert not per_channel
+        self.axis = [0]
+        in_size = insize
 
         self.register_buffer("running_mean", torch.zeros(in_size, dtype = torch.float64))
         self.register_buffer("running_var", torch.ones(in_size, dtype = torch.float64))
@@ -55,19 +46,8 @@ class RunningMeanStd(nn.Module):
                                                     mean, var, input.size()[0] )
 
         # change shape
-        if self.per_channel:
-            if len(self.insize) == 3:
-                current_mean = self.running_mean.view([1, self.insize[0], 1, 1]).expand_as(input)
-                current_var = self.running_var.view([1, self.insize[0], 1, 1]).expand_as(input)
-            if len(self.insize) == 2:
-                current_mean = self.running_mean.view([1, self.insize[0], 1]).expand_as(input)
-                current_var = self.running_var.view([1, self.insize[0], 1]).expand_as(input)
-            if len(self.insize) == 1:
-                current_mean = self.running_mean.view([1, self.insize[0]]).expand_as(input)
-                current_var = self.running_var.view([1, self.insize[0]]).expand_as(input)        
-        else:
-            current_mean = self.running_mean
-            current_var = self.running_var
+        current_mean = self.running_mean
+        current_var = self.running_var
         # get output
 
 

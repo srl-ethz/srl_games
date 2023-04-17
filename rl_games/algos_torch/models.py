@@ -61,9 +61,6 @@ class ModelA2CContinuousLogStd(BaseModel):
 
         def is_rnn(self):
             return self.a2c_network.is_rnn()
-            
-        def get_default_rnn_state(self):
-            return self.a2c_network.get_default_rnn_state()
 
         def forward(self, input_dict):
             is_train = input_dict.get('is_train', True)

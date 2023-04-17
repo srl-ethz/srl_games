@@ -434,15 +434,6 @@ class A2CBase(BaseAlgorithm):
         self.current_lengths = torch.zeros(batch_size, dtype=torch.float32, device=self.ppo_device)
         self.dones = torch.ones((batch_size,), dtype=torch.uint8, device=self.ppo_device)
 
-        if self.is_rnn:
-            self.rnn_states = self.model.get_default_rnn_state()
-            self.rnn_states = [s.to(self.ppo_device) for s in self.rnn_states]
-
-            total_agents = self.num_agents * self.num_actors
-            num_seqs = self.horizon_length // self.seq_len
-            assert((self.horizon_length * total_agents // self.num_minibatches) % self.seq_len == 0)
-            self.mb_rnn_states = [torch.zeros((num_seqs, s.size()[0], total_agents, s.size()[2]), dtype = torch.float32, device=self.ppo_device) for s in self.rnn_states]
-
     def init_rnn_from_model(self, model):
         self.is_rnn = self.model.is_rnn()
 
