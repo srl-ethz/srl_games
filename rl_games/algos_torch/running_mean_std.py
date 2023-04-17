@@ -44,6 +44,8 @@ class RunningMeanStd(nn.Module):
 
     def forward(self, input, unnorm=False, mask=None):
         if self.training:
+            # print(f"updating mean and var with {input.shape}")
+            assert not unnorm
             if mask is not None:
                 mean, var = torch_ext.get_mean_std_with_masks(input, mask)
             else:

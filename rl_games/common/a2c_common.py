@@ -3,8 +3,6 @@ import os
 
 from rl_games.common import vecenv
 
-from rl_games.algos_torch.moving_mean_std import MovingMeanStd
-from rl_games.algos_torch.self_play_manager import SelfPlayManager
 from rl_games.algos_torch import torch_ext
 from rl_games.common import schedulers
 from rl_games.common.experience import ExperienceBuffer
@@ -664,6 +662,7 @@ class A2CBase(BaseAlgorithm):
                 res_dict = self.get_action_values(self.obs)
             self.experience_buffer.update_data('obses', n, self.obs['obs'])
             self.experience_buffer.update_data('dones', n, self.dones)
+            # print(f"{self.dones=}")
 
             for k in update_list:
                 self.experience_buffer.update_data(k, n, res_dict[k]) 
@@ -672,11 +671,13 @@ class A2CBase(BaseAlgorithm):
 
             step_time_start = time.time()
             self.obs, rewards, self.dones, infos = self.env_step(res_dict['actions'])
+            # print(f"{rewards.mean()=}")
             step_time_end = time.time()
 
             step_time += (step_time_end - step_time_start)
 
             shaped_rewards = self.rewards_shaper(rewards)
+            # print(f"{shaped_rewards.mean()=}")
             if self.value_bootstrap and 'time_outs' in infos:
                 shaped_rewards += self.gamma * res_dict['values'] * self.cast_obs(infos['time_outs']).unsqueeze(1).float()
 
@@ -904,6 +905,7 @@ class DiscreteA2CBase(A2CBase):
                     advantages = torch_ext.normalization_with_masks(advantages, rnn_masks)
             else:
                 if self.normalize_rms_advantage:
+                    exit()
                     advantages = self.advantage_mean_std(advantages)
                 else:
                     advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
@@ -1108,6 +1110,7 @@ class ContinuousA2CBase(A2CBase):
 
         for mini_ep in range(0, self.mini_epochs_num):
             ep_kls = []
+            # print(len(self.dataset))
             for i in range(len(self.dataset)):
                 a_loss, c_loss, entropy, kl, last_lr, lr_mul, cmu, csigma, b_loss = self.train_actor_critic(self.dataset[i])
                 a_losses.append(a_loss)
@@ -1136,6 +1139,8 @@ class ContinuousA2CBase(A2CBase):
 
             kls.append(av_kls)
             self.diagnostics.mini_epoch(self, mini_ep)
+            # check if it is in train mode
+            # print(f"{self.model.running_mean_std.training}")
             if self.normalize_input:
                 self.model.running_mean_std.eval() # don't need to update statstics more than one miniepoch
 
@@ -1166,8 +1171,10 @@ class ContinuousA2CBase(A2CBase):
             returns = self.value_mean_std(returns)
             self.value_mean_std.eval()
 
+        # print(f"{advantages.shape=}")
         advantages = torch.sum(advantages, axis=1)
 
+        # print(f"{advantages.shape=}")
         if self.normalize_advantage:
             if self.is_rnn:
                 if self.normalize_rms_advantage:

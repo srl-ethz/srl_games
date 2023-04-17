@@ -11,23 +11,27 @@ from rl_games.common import object_factory
 from rl_games.common import tr_helpers
 
 from rl_games.algos_torch import a2c_continuous
-from rl_games.algos_torch import a2c_discrete
 from rl_games.algos_torch import players
 from rl_games.common.algo_observer import DefaultAlgoObserver
-from rl_games.algos_torch import sac_agent
 
+import rl_games.networks
 
 def _restore(agent, args):
     if 'checkpoint' in args and args['checkpoint'] is not None and args['checkpoint'] !='':
         agent.restore(args['checkpoint'])
 
 def _override_sigma(agent, args):
+    # nothing happen here
     if 'sigma' in args and args['sigma'] is not None:
+        print("here")
         net = agent.model.a2c_network
         if hasattr(net, 'sigma') and hasattr(net, 'fixed_sigma'):
+            print(f"sigma: {net.sigma}, fixed_sigma: {net.fixed_sigma}")
             if net.fixed_sigma:
                 with torch.no_grad():
                     net.sigma.fill_(float(args['sigma']))
+                print('Set new sigma to {}'.format(args['sigma']))
+                exit()
             else:
                 print('Print cannot set new sigma because fixed_sigma is False')
 
@@ -36,14 +40,10 @@ class Runner:
     def __init__(self, algo_observer=None):
         self.algo_factory = object_factory.ObjectFactory()
         self.algo_factory.register_builder('a2c_continuous', lambda **kwargs : a2c_continuous.A2CAgent(**kwargs))
-        self.algo_factory.register_builder('a2c_discrete', lambda **kwargs : a2c_discrete.DiscreteA2CAgent(**kwargs)) 
-        self.algo_factory.register_builder('sac', lambda **kwargs: sac_agent.SACAgent(**kwargs))
         #self.algo_factory.register_builder('dqn', lambda **kwargs : dqnagent.DQNAgent(**kwargs))
 
         self.player_factory = object_factory.ObjectFactory()
         self.player_factory.register_builder('a2c_continuous', lambda **kwargs : players.PpoPlayerContinuous(**kwargs))
-        self.player_factory.register_builder('a2c_discrete', lambda **kwargs : players.PpoPlayerDiscrete(**kwargs))
-        self.player_factory.register_builder('sac', lambda **kwargs : players.SACPlayer(**kwargs))
         #self.player_factory.register_builder('dqn', lambda **kwargs : players.DQNPlayer(**kwargs))
 
         self.algo_observer = algo_observer if algo_observer else DefaultAlgoObserver()

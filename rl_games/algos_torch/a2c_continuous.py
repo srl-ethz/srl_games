@@ -1,7 +1,6 @@
 from rl_games.common import a2c_common
 from rl_games.algos_torch import torch_ext
 
-from rl_games.algos_torch import central_value
 from rl_games.common import common_losses
 from rl_games.common import datasets
 
@@ -32,33 +31,14 @@ class A2CAgent(a2c_common.ContinuousA2CBase):
         self.bound_loss_type = self.config.get('bound_loss_type', 'bound') # 'regularisation' or 'bound'
         self.optimizer = optim.Adam(self.model.parameters(), float(self.last_lr), eps=1e-08, weight_decay=self.weight_decay)
 
-        if self.has_central_value:
-            cv_config = {
-                'state_shape' : self.state_shape, 
-                'value_size' : self.value_size,
-                'ppo_device' : self.ppo_device, 
-                'num_agents' : self.num_agents, 
-                'horizon_length' : self.horizon_length,
-                'num_actors' : self.num_actors, 
-                'num_actions' : self.actions_num, 
-                'seq_len' : self.seq_len,
-                'normalize_value' : self.normalize_value,
-                'network' : self.central_value_config['network'],
-                'config' : self.central_value_config, 
-                'writter' : self.writer,
-                'max_epochs' : self.max_epochs,
-                'multi_gpu' : self.multi_gpu,
-                'zero_rnn_on_done' : self.zero_rnn_on_done
-            }
-            self.central_value_net = central_value.CentralValueTrain(**cv_config).to(self.ppo_device)
-
+        assert not self.has_central_value, "removed for rl_games_simplified"
+        
         self.use_experimental_cv = self.config.get('use_experimental_cv', True)
         self.dataset = datasets.PPODataset(self.batch_size, self.minibatch_size, self.is_discrete, self.is_rnn, self.ppo_device, self.seq_len)
         if self.normalize_value:
-            self.value_mean_std = self.central_value_net.model.value_mean_std if self.has_central_value else self.model.value_mean_std
+            self.value_mean_std = self.model.value_mean_std
 
-        self.has_value_loss = (self.has_central_value and self.use_experimental_cv) \
-                            or (not self.has_phasic_policy_gradients and not self.has_central_value) 
+        self.has_value_loss = not self.has_phasic_policy_gradients
         self.algo_observer.after_init(self)
 
     def update_epoch(self):
@@ -111,6 +91,7 @@ class A2CAgent(a2c_common.ContinuousA2CBase):
             values = res_dict['values']
             entropy = res_dict['entropy']
             mu = res_dict['mus']
+            mu_start = mu.clone()
             sigma = res_dict['sigmas']
 
             a_loss = self.actor_loss_func(old_action_log_probs_batch, action_log_probs, advantage, self.ppo, curr_e_clip)
@@ -154,7 +135,8 @@ class A2CAgent(a2c_common.ContinuousA2CBase):
             'old_neglogp' : old_action_log_probs_batch,
             'masks' : rnn_masks
         }, curr_e_clip, 0)      
-
+        # check that mu_start and mu are the same
+        assert torch.allclose(mu_start, mu, atol=1e-5), 'mu_start and mu are not the same'
         self.train_result = (a_loss, c_loss, entropy, \
             kl_dist, self.last_lr, lr_mul, \
             mu.detach(), sigma.detach(), b_loss)
@@ -176,6 +158,8 @@ class A2CAgent(a2c_common.ContinuousA2CBase):
             mu_loss_high = torch.clamp_min(mu - soft_bound, 0.0)**2
             mu_loss_low = torch.clamp_max(mu + soft_bound, 0.0)**2
             b_loss = (mu_loss_low + mu_loss_high).sum(axis=-1)
+            # print how many envs have nonzero bound loss
+            # print('nonzero bound loss', (b_loss > 0).sum().item(), '/', b_loss.shape[0])
         else:
             b_loss = 0
         return b_loss

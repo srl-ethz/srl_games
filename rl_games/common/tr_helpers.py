@@ -22,7 +22,7 @@ class DefaultRewardsShaper:
         self.is_torch = is_torch
 
     def __call__(self, reward):
-        
+        # print(f"scaling reward by {self.scale_value} and shifting by {self.shift_value}")
         reward = reward + self.shift_value
         reward = reward * self.scale_value
  
