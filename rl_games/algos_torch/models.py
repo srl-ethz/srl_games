@@ -2,7 +2,6 @@ import numpy as np
 import torch.nn as nn
 import torch
 import torch.nn.functional as F
-from rl_games.algos_torch.torch_ext import CategoricalMasked
 from torch.distributions import Categorical
 from rl_games.algos_torch.running_mean_std import RunningMeanStd
 
@@ -11,11 +10,6 @@ class BaseModel():
     def __init__(self, model_class):
         self.model_class = model_class
 
-    def is_rnn(self):
-        return False
-
-    def is_separate_critic(self):
-        return False
 
     def build(self, config):
         obs_shape = config['input_shape']

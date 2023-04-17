@@ -13,26 +13,6 @@ from rl_games.common import tr_helpers
 from rl_games.algos_torch import a2c_continuous
 from rl_games.common.algo_observer import DefaultAlgoObserver
 
-def _restore(agent, args):
-    if 'checkpoint' in args and args['checkpoint'] is not None and args['checkpoint'] !='':
-        agent.restore(args['checkpoint'])
-
-def _override_sigma(agent, args):
-    # nothing happen here
-    if 'sigma' in args and args['sigma'] is not None:
-        print("here")
-        net = agent.model.a2c_network
-        if hasattr(net, 'sigma') and hasattr(net, 'fixed_sigma'):
-            print(f"sigma: {net.sigma}, fixed_sigma: {net.fixed_sigma}")
-            if net.fixed_sigma:
-                with torch.no_grad():
-                    net.sigma.fill_(float(args['sigma']))
-                print('Set new sigma to {}'.format(args['sigma']))
-                exit()
-            else:
-                print('Print cannot set new sigma because fixed_sigma is False')
-
-
 class Runner:
     def __init__(self, algo_observer=None):
         self.algo_factory = object_factory.ObjectFactory()
@@ -44,9 +24,6 @@ class Runner:
         ### it didnot help for lots for openai gym envs anyway :(
         #torch.backends.cudnn.deterministic = True
         #torch.use_deterministic_algorithms(True)
-
-    def reset(self):
-        pass
 
     def load_config(self, params):
         self.seed = params.get('seed', None)
@@ -67,14 +44,6 @@ class Runner:
             np.random.seed(self.seed)
             random.seed(self.seed)
 
-            # deal with environment specific seed if applicable
-            if 'env_config' in params['config']:
-                if not 'seed' in params['config']['env_config']:
-                    params['config']['env_config']['seed'] = self.seed
-                else:
-                    if params["config"].get('multi_gpu', False):
-                        params['config']['env_config']['seed'] += int(os.getenv("LOCAL_RANK", "0"))
-
         config = params['config']
         config['reward_shaper'] = tr_helpers.DefaultRewardsShaper(**config['reward_shaper'])
         if 'features' not in config:
@@ -90,16 +59,8 @@ class Runner:
     def run_train(self, args):
         print('Started to train')
         agent = self.algo_factory.create(self.algo_name, base_name='run', params=self.params)
-        _restore(agent, args)
-        _override_sigma(agent, args)
         agent.train()
 
-    def run_play(self, args):
-        print('Started to play')
-        player = self.create_player()
-        _restore(player, args)
-        _override_sigma(player, args)
-        player.run()
 
     def reset(self):
         pass
@@ -107,10 +68,5 @@ class Runner:
     def run(self, args):
         load_path = None
 
-        if args['train']:
-            self.run_train(args)
-
-        elif args['play']:
-            self.run_play(args)
-        else:
-            self.run_train(args)
+        assert args['train']
+        self.run_train(args)
