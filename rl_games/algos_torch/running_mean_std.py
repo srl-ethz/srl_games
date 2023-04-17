@@ -13,18 +13,9 @@ class RunningMeanStd(nn.Module):
         self.epsilon = epsilon
 
         self.norm_only = norm_only
-        self.per_channel = per_channel
-        if per_channel:
-            if len(self.insize) == 3:
-                self.axis = [0,2,3]
-            if len(self.insize) == 2:
-                self.axis = [0,2]
-            if len(self.insize) == 1:
-                self.axis = [0]
-            in_size = self.insize[0] 
-        else:
-            self.axis = [0]
-            in_size = insize
+        assert not per_channel
+        self.axis = [0]
+        in_size = insize
 
         self.register_buffer("running_mean", torch.zeros(in_size, dtype = torch.float64))
         self.register_buffer("running_var", torch.ones(in_size, dtype = torch.float64))
@@ -44,6 +35,8 @@ class RunningMeanStd(nn.Module):
 
     def forward(self, input, unnorm=False, mask=None):
         if self.training:
+            # print(f"updating mean and var with {input.shape}")
+            assert not unnorm
             if mask is not None:
                 mean, var = torch_ext.get_mean_std_with_masks(input, mask)
             else:
@@ -53,19 +46,8 @@ class RunningMeanStd(nn.Module):
                                                     mean, var, input.size()[0] )
 
         # change shape
-        if self.per_channel:
-            if len(self.insize) == 3:
-                current_mean = self.running_mean.view([1, self.insize[0], 1, 1]).expand_as(input)
-                current_var = self.running_var.view([1, self.insize[0], 1, 1]).expand_as(input)
-            if len(self.insize) == 2:
-                current_mean = self.running_mean.view([1, self.insize[0], 1]).expand_as(input)
-                current_var = self.running_var.view([1, self.insize[0], 1]).expand_as(input)
-            if len(self.insize) == 1:
-                current_mean = self.running_mean.view([1, self.insize[0]]).expand_as(input)
-                current_var = self.running_var.view([1, self.insize[0]]).expand_as(input)        
-        else:
-            current_mean = self.running_mean
-            current_var = self.running_var
+        current_mean = self.running_mean
+        current_var = self.running_var
         # get output
 
 
@@ -79,15 +61,3 @@ class RunningMeanStd(nn.Module):
                 y = (input - current_mean.float()) / torch.sqrt(current_var.float() + self.epsilon)
                 y = torch.clamp(y, min=-5.0, max=5.0)
         return y
-
-class RunningMeanStdObs(nn.Module):
-    def __init__(self, insize, epsilon=1e-05, per_channel=False, norm_only=False):
-        assert(isinstance(insize, dict))
-        super(RunningMeanStdObs, self).__init__()
-        self.running_mean_std = nn.ModuleDict({
-            k : RunningMeanStd(v, epsilon, per_channel, norm_only) for k,v in insize.items()
-        })
-    
-    def forward(self, input, unnorm=False):
-        res = {k : self.running_mean_std[k](v, unnorm) for k,v in input.items()}
-        return res
