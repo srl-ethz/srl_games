@@ -1,4 +1,3 @@
-import rl_games.algos_torch.layers
 import numpy as np
 import torch.nn as nn
 import torch
