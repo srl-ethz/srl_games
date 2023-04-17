@@ -12,7 +12,7 @@ class RunningMeanStd(nn.Module):
         self.insize = insize
         self.epsilon = epsilon
 
-        self.norm_only = norm_only
+        assert not norm_only
         assert not per_channel
         self.axis = [0]
         in_size = insize
@@ -37,11 +37,9 @@ class RunningMeanStd(nn.Module):
         if self.training:
             # print(f"updating mean and var with {input.shape}")
             assert not unnorm
-            if mask is not None:
-                mean, var = torch_ext.get_mean_std_with_masks(input, mask)
-            else:
-                mean = input.mean(self.axis) # along channel axis
-                var = input.var(self.axis)
+            assert mask is None
+            mean = input.mean(self.axis) # along channel axis
+            var = input.var(self.axis)
             self.running_mean, self.running_var, self.count = self._update_mean_var_count_from_moments(self.running_mean, self.running_var, self.count, 
                                                     mean, var, input.size()[0] )
 
@@ -49,15 +47,10 @@ class RunningMeanStd(nn.Module):
         current_mean = self.running_mean
         current_var = self.running_var
         # get output
-
-
         if unnorm:
             y = torch.clamp(input, min=-5.0, max=5.0)
             y = torch.sqrt(current_var.float() + self.epsilon)*y + current_mean.float()
         else:
-            if self.norm_only:
-                y = input/ torch.sqrt(current_var.float() + self.epsilon)
-            else:
-                y = (input - current_mean.float()) / torch.sqrt(current_var.float() + self.epsilon)
-                y = torch.clamp(y, min=-5.0, max=5.0)
+            y = (input - current_mean.float()) / torch.sqrt(current_var.float() + self.epsilon)
+            y = torch.clamp(y, min=-5.0, max=5.0)
         return y
