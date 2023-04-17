@@ -14,8 +14,6 @@ from rl_games.algos_torch import a2c_continuous
 from rl_games.algos_torch import players
 from rl_games.common.algo_observer import DefaultAlgoObserver
 
-import rl_games.networks
-
 def _restore(agent, args):
     if 'checkpoint' in args and args['checkpoint'] is not None and args['checkpoint'] !='':
         agent.restore(args['checkpoint'])
