@@ -2,7 +2,6 @@ import numpy as np
 import torch.nn as nn
 import torch
 import torch.nn.functional as F
-import rl_games.common.divergence as divergence
 from rl_games.algos_torch.torch_ext import CategoricalMasked
 from torch.distributions import Categorical
 from rl_games.algos_torch.running_mean_std import RunningMeanStd

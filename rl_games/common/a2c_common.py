@@ -6,7 +6,6 @@ from rl_games.common import vecenv
 from rl_games.algos_torch import torch_ext
 from rl_games.common import schedulers
 from rl_games.common.experience import ExperienceBuffer
-from rl_games.common.interval_summary_writer import IntervalSummaryWriter
 from rl_games.common.diagnostics import DefaultDiagnostics, PpoDiagnostics
 from rl_games.algos_torch import  model_builder
 from rl_games.interfaces.base_algorithm import  BaseAlgorithm
@@ -65,9 +64,7 @@ class A2CBase(BaseAlgorithm):
         self.config = config = params['config']
         pbt_str = ''
         self.population_based_training = config.get('population_based_training', False)
-        if self.population_based_training:
-            # in PBT, make sure experiment name contains a unique id of the policy within a population
-            pbt_str = f'_pbt_{config["pbt_idx"]:02d}'
+        assert not self.population_based_training, "removed in rl_games_simplified"
 
         # This helps in PBT when we need to restart an experiment with the exact same name, rather than
         # generating a new name with the timestamp every time.
@@ -255,10 +252,8 @@ class A2CBase(BaseAlgorithm):
 
         if self.rank == 0:
             writer = SummaryWriter(self.summaries_dir)
-            if self.population_based_training:
-                self.writer = IntervalSummaryWriter(writer, self.config)
-            else:
-                self.writer = writer
+            assert not self.population_based_training, "removed in rl_games_simplified"
+            self.writer = writer
         else:
             self.writer = None
 
