@@ -5,7 +5,7 @@ import torch.nn.functional as F
 import rl_games.common.divergence as divergence
 from rl_games.algos_torch.torch_ext import CategoricalMasked
 from torch.distributions import Categorical
-from rl_games.algos_torch.running_mean_std import RunningMeanStd, RunningMeanStdObs
+from rl_games.algos_torch.running_mean_std import RunningMeanStd
 
 
 class BaseModel():
@@ -37,10 +37,8 @@ class BaseModelNetwork(nn.Module):
         if normalize_value:
             self.value_mean_std = RunningMeanStd((self.value_size,))
         if normalize_input:
-            if isinstance(obs_shape, dict):
-                self.running_mean_std = RunningMeanStdObs(obs_shape)
-            else:
-                self.running_mean_std = RunningMeanStd(obs_shape)
+            assert not isinstance(obs_shape, dict), "function removed in rl_games_simplified"
+            self.running_mean_std = RunningMeanStd(obs_shape)
 
     def norm_obs(self, observation):
         with torch.no_grad():
