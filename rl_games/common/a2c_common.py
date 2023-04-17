@@ -266,14 +266,6 @@ class A2CBase(BaseAlgorithm):
         self.writer.add_scalar('info/epochs', epoch_num, frame)
         self.algo_observer.after_print_stats(frame, epoch_num, total_time)
 
-    def set_eval(self):
-        self.model.eval()
-
-    def set_train(self):
-        self.model.train()
-        if self.normalize_rms_advantage:
-            self.advantage_mean_std.train()
-
     def update_lr(self, lr):
 
         for param_group in self.optimizer.param_groups:
@@ -337,54 +329,31 @@ class A2CBase(BaseAlgorithm):
         self.is_rnn = self.model.is_rnn()
 
     def cast_obs(self, obs):
-        if isinstance(obs, torch.Tensor):
-            self.is_tensor_obses = True
-        elif isinstance(obs, np.ndarray):
-            assert(obs.dtype != np.int8)
-            if obs.dtype == np.uint8:
-                obs = torch.ByteTensor(obs).to(self.ppo_device)
-            else:
-                obs = torch.FloatTensor(obs).to(self.ppo_device)
+        assert isinstance(obs, torch.Tensor)
+        self.is_tensor_obses = True
         return obs
 
     def obs_to_tensors(self, obs):
-        obs_is_dict = isinstance(obs, dict)
-        if obs_is_dict:
-            upd_obs = {}
-            for key, value in obs.items():
-                upd_obs[key] = self._obs_to_tensors_internal(value)
-        else:
-            upd_obs = self.cast_obs(obs)
-        if not obs_is_dict or 'obs' not in obs:    
-            upd_obs = {'obs' : upd_obs}
+        assert isinstance(obs, dict)
+        upd_obs = {}
+        for key, value in obs.items():
+            upd_obs[key] = self._obs_to_tensors_internal(value)
         return upd_obs
 
     def _obs_to_tensors_internal(self, obs):
-        if isinstance(obs, dict):
-            upd_obs = {}
-            for key, value in obs.items():
-                upd_obs[key] = self._obs_to_tensors_internal(value)
-        else:
-            upd_obs = self.cast_obs(obs)
+        assert not isinstance(obs, dict)
+        upd_obs = self.cast_obs(obs)
         return upd_obs
 
-    def preprocess_actions(self, actions):
-        if not self.is_tensor_obses:
-            actions = actions.cpu().numpy()
-        return actions
 
     def env_step(self, actions):
         actions = self.preprocess_actions(actions)
         obs, rewards, dones, infos = self.vec_env.step(actions)
 
-        if self.is_tensor_obses:
-            if self.value_size == 1:
-                rewards = rewards.unsqueeze(1)
-            return self.obs_to_tensors(obs), rewards.to(self.ppo_device), dones.to(self.ppo_device), infos
-        else:
-            if self.value_size == 1:
-                rewards = np.expand_dims(rewards, axis=1)
-            return self.obs_to_tensors(obs), torch.from_numpy(rewards).to(self.ppo_device).float(), torch.from_numpy(dones).to(self.ppo_device), infos
+        assert self.is_tensor_obses
+        assert self.value_size == 1
+        rewards = rewards.unsqueeze(1)
+        return self.obs_to_tensors(obs), rewards.to(self.ppo_device), dones.to(self.ppo_device), infos
 
     def env_reset(self):
         obs = self.vec_env.reset()
@@ -614,7 +583,7 @@ class ContinuousA2CBase(A2CBase):
     def train_epoch(self):
         super().train_epoch()
 
-        self.set_eval()
+        self.model.eval()
         play_time_start = time.time()
         with torch.no_grad():
             batch_dict = self.play_steps()
@@ -623,7 +592,7 @@ class ContinuousA2CBase(A2CBase):
         update_time_start = time.time()
         rnn_masks = batch_dict.get('rnn_masks', None)
 
-        self.set_train()
+        self.model.train()
         self.curr_frames = batch_dict.pop('played_frames')
         self.prepare_dataset(batch_dict)
         self.algo_observer.after_steps()
