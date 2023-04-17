@@ -31,29 +31,6 @@ class PPODataset(Dataset):
     def __len__(self):
         return self.length
 
-    def _get_item_rnn(self, idx):
-        gstart = idx * self.num_games_batch
-        gend = (idx + 1) * self.num_games_batch
-        start = gstart * self.seq_len
-        end = gend * self.seq_len
-        self.last_range = (start, end)   
-        input_dict = {}
-        for k,v in self.values_dict.items():
-            if k not in self.special_names:
-                if isinstance(v, dict):
-                    v_dict = {kd:vd[start:end] for kd, vd in v.items()}
-                    input_dict[k] = v_dict
-                else:
-                    if v is not None:
-                        input_dict[k] = v[start:end]
-                    else:
-                        input_dict[k] = None
-        
-        rnn_states = self.values_dict['rnn_states']
-        input_dict['rnn_states'] = [s[:, gstart:gend, :].contiguous() for s in rnn_states]
-
-        return input_dict
-
     def _get_item(self, idx):
         start = idx * self.minibatch_size
         end = (idx + 1) * self.minibatch_size
@@ -76,23 +53,3 @@ class PPODataset(Dataset):
             sample = self._get_item(idx)
         return sample
 
-
-
-class DatasetList(Dataset):
-    def __init__(self):
-        self.dataset_list = []
-
-    def __len__(self):
-        return self.dataset_list[0].length * len(self.dataset_list)
-
-    def add_dataset(self, dataset):
-        self.dataset_list.append(copy.deepcopy(dataset))
-
-    def clear(self):
-        self.dataset_list = []
-
-    def __getitem__(self, idx):
-        ds_len = len(self.dataset_list)
-        ds_idx = idx % ds_len
-        in_idx = idx // ds_len
-        return self.dataset_list[ds_idx].__getitem__(in_idx)

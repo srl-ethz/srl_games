@@ -62,7 +62,6 @@ class A2CAgent(a2c_common.ContinuousA2CBase):
         return_batch = input_dict['returns']
         actions_batch = input_dict['actions']
         obs_batch = input_dict['obs']
-        obs_batch = self._preproc_obs(obs_batch)
 
         lr_mul = 1.0
         curr_e_clip = self.e_clip

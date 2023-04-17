@@ -129,13 +129,6 @@ class AverageMeter(nn.Module):
         self.current_size = size_sum
         self.mean = (self.mean * old_size + new_mean * size) / size_sum
 
-    def clear(self):
-        self.current_size = 0
-        self.mean.fill_(0)
-
-    def __len__(self):
-        return self.current_size
-
     def get_mean(self):
         return self.mean.squeeze(0).cpu().numpy()
 

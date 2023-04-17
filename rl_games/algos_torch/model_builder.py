@@ -6,13 +6,6 @@ from rl_games.algos_torch import models
 NETWORK_REGISTRY = {}
 MODEL_REGISTRY = {}
 
-def register_network(name, target_class):
-    NETWORK_REGISTRY[name] = lambda **kwargs: target_class()
-
-def register_model(name, target_class):
-    MODEL_REGISTRY[name] = lambda  network, **kwargs: target_class(network)
-
-
 class NetworkBuilder:
     def __init__(self):
         self.network_factory = object_factory.ObjectFactory()
@@ -47,9 +40,6 @@ class ModelBuilder:
         self.model_factory.register_builder('central_value',
                                             lambda network, **kwargs: models.ModelCentralValue(network))
         self.network_builder = NetworkBuilder()
-
-    def get_network_builder(self):
-        return self.network_builder
 
     def load(self, params):
         model_name = params['model']['name']
