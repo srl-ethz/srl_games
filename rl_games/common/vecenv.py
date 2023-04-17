@@ -222,12 +222,3 @@ def create_vec_env(config_name, num_actors, **kwargs):
     return vecenv_config[vec_env_name](config_name, num_actors, **kwargs)
 
 register('RAY', lambda config_name, num_actors, **kwargs: RayVecEnv(config_name, num_actors, **kwargs))
-
-from rl_games.envs.brax import BraxEnv
-register('BRAX', lambda config_name, num_actors, **kwargs: BraxEnv(config_name, num_actors, **kwargs))
-
-from rl_games.envs.envpool import Envpool
-register('ENVPOOL', lambda config_name, num_actors, **kwargs: Envpool(config_name, num_actors, **kwargs))
-
-from rl_games.envs.cule import CuleEnv
-register('CULE', lambda config_name, num_actors, **kwargs: CuleEnv(config_name, num_actors, **kwargs))
