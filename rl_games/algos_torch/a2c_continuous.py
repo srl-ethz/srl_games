@@ -52,7 +52,7 @@ class A2CAgent(a2c_common.ContinuousA2CBase):
         checkpoint = torch_ext.load_checkpoint(fn)
         self.set_full_state_weights(checkpoint)
 
-    def calc_gradients(self, input_dict):
+    def train_actor_critic(self, input_dict):
         value_preds_batch = input_dict['old_values']
         old_action_log_probs_batch = input_dict['old_logp_actions']
         advantage = input_dict['advantages']
@@ -71,38 +71,32 @@ class A2CAgent(a2c_common.ContinuousA2CBase):
             'obs' : obs_batch,
         }
 
+        res_dict = self.model(batch_dict)
+        action_log_probs = res_dict['prev_neglogp']
+        values = res_dict['values']
+        entropy = res_dict['entropy']
+        mu = res_dict['mus']
+        sigma = res_dict['sigmas']
 
-        with torch.cuda.amp.autocast(enabled=self.mixed_precision):
-            res_dict = self.model(batch_dict)
-            action_log_probs = res_dict['prev_neglogp']
-            values = res_dict['values']
-            entropy = res_dict['entropy']
-            mu = res_dict['mus']
-            mu_start = mu.clone()
-            sigma = res_dict['sigmas']
+        a_loss = common_losses.actor_loss(old_action_log_probs_batch, action_log_probs, advantage, self.ppo, curr_e_clip)
 
-            a_loss = self.actor_loss_func(old_action_log_probs_batch, action_log_probs, advantage, self.ppo, curr_e_clip)
+        c_loss = common_losses.critic_loss(value_preds_batch, values, curr_e_clip, return_batch, self.clip_value)
 
-            assert self.has_value_loss
-            c_loss = common_losses.critic_loss(value_preds_batch, values, curr_e_clip, return_batch, self.clip_value)
+        assert self.bound_loss_type == 'bound'
+        b_loss = self.bound_loss(mu)
+    
+        losses = [torch.mean(loss) for loss in [a_loss.unsqueeze(1), c_loss , entropy.unsqueeze(1), b_loss.unsqueeze(1)]]
+        a_loss, c_loss, entropy, b_loss = losses[0], losses[1], losses[2], losses[3]
 
-            assert self.bound_loss_type == 'bound'
-            b_loss = self.bound_loss(mu)
-        
-            losses = [torch.mean(loss) for loss in [a_loss.unsqueeze(1), c_loss , entropy.unsqueeze(1), b_loss.unsqueeze(1)]]
-            a_loss, c_loss, entropy, b_loss = losses[0], losses[1], losses[2], losses[3]
+        loss = a_loss + 0.5 * c_loss * self.critic_coef - entropy * self.entropy_coef + b_loss * self.bounds_loss_coef
 
-            loss = a_loss + 0.5 * c_loss * self.critic_coef - entropy * self.entropy_coef + b_loss * self.bounds_loss_coef
-            
-            if self.multi_gpu:
-                self.optimizer.zero_grad()
-            else:
-                for param in self.model.parameters():
-                    param.grad = None
+        self.optimizer.zero_grad()
 
-        self.scaler.scale(loss).backward()
-        #TODO: Refactor this ugliest code of they year
-        self.trancate_gradients_and_step()
+        loss.backward()
+
+        if self.truncate_grads:
+            nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_norm)
+        self.optimizer.step()
 
         with torch.no_grad():
             kl_dist = torch_ext.policy_kl(mu.detach(), sigma.detach(), old_mu_batch, old_sigma_batch)
@@ -113,9 +107,6 @@ class A2CAgent(a2c_common.ContinuousA2CBase):
             kl_dist, self.last_lr, lr_mul, \
             mu.detach(), sigma.detach(), b_loss)
 
-    def train_actor_critic(self, input_dict):
-        self.calc_gradients(input_dict)
-        return self.train_result
 
     def bound_loss(self, mu):
         if self.bounds_loss_coef is not None:
