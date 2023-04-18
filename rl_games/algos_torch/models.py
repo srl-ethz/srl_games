@@ -53,14 +53,11 @@ class ModelA2CContinuousLogStd(BaseModel):
             BaseModelNetwork.__init__(self, **kwargs)
             self.a2c_network = a2c_network
 
-        def is_rnn(self):
-            return self.a2c_network.is_rnn()
-
         def forward(self, input_dict):
             is_train = input_dict.get('is_train', True)
             prev_actions = input_dict.get('prev_actions', None)
             input_dict['obs'] = self.norm_obs(input_dict['obs'])
-            mu, logstd, value, states = self.a2c_network(input_dict)
+            mu, logstd, value = self.a2c_network(input_dict)
             # print(f"{logstd=}")
             sigma = torch.exp(logstd)
             distr = torch.distributions.Normal(mu, sigma, validate_args=False)
@@ -71,7 +68,6 @@ class ModelA2CContinuousLogStd(BaseModel):
                     'prev_neglogp' : torch.squeeze(prev_neglogp),
                     'values' : value,
                     'entropy' : entropy,
-                    'rnn_states' : states,
                     'mus' : mu,
                     'sigmas' : sigma
                 }                
@@ -83,7 +79,6 @@ class ModelA2CContinuousLogStd(BaseModel):
                     'neglogpacs' : torch.squeeze(neglogp),
                     'values' : self.unnorm_value(value),
                     'actions' : selected_action,
-                    'rnn_states' : states,
                     'mus' : mu,
                     'sigmas' : sigma
                 }

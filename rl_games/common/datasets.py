@@ -3,8 +3,7 @@ import copy
 from torch.utils.data import Dataset
 
 class PPODataset(Dataset):
-    def __init__(self, batch_size, minibatch_size, is_discrete, is_rnn, device, seq_len):
-        self.is_rnn = is_rnn
+    def __init__(self, batch_size, minibatch_size, is_discrete, device, seq_len):
         self.seq_len = seq_len
         self.batch_size = batch_size
         self.minibatch_size = minibatch_size
@@ -31,7 +30,7 @@ class PPODataset(Dataset):
     def __len__(self):
         return self.length
 
-    def _get_item(self, idx):
+    def __getitem__(self, idx):
         start = idx * self.minibatch_size
         end = (idx + 1) * self.minibatch_size
         self.last_range = (start, end)
@@ -45,11 +44,3 @@ class PPODataset(Dataset):
                     input_dict[k] = v[start:end]
                 
         return input_dict
-
-    def __getitem__(self, idx):
-        if self.is_rnn:
-            sample = self._get_item_rnn(idx)
-        else:
-            sample = self._get_item(idx)
-        return sample
-

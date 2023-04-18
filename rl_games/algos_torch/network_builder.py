@@ -34,12 +34,7 @@ class NetworkBuilder:
             self.activations_factory.register_builder('None', lambda **kwargs : nn.Identity())
 
 
-        def is_rnn(self):
-            return False
 
-        def _calc_input_size(self, input_shape,cnn_layers=None):
-            assert not cnn_layers is None
-            return nn.Sequential(*cnn_layers)(torch.rand(1, *(input_shape))).flatten(1).data.size(1)
         def _build_sequential_mlp(self, 
         input_size, 
         units, 
@@ -145,7 +140,6 @@ class A2CBuilder(NetworkBuilder):
 
         def forward(self, obs_dict):
             obs = obs_dict['obs']
-            states = obs_dict.get('rnn_states', None)
             seq_length = obs_dict.get('seq_length', 1)
             dones = obs_dict.get('dones', None)
             bptt_len = obs_dict.get('bptt_len', 0)
@@ -157,11 +151,8 @@ class A2CBuilder(NetworkBuilder):
             value = self.value(out)
 
             mu = self.mu(out)
-            return mu, mu*0 + self.sigma, value, states
+            return mu, mu*0 + self.sigma, value
                     
-
-        def is_rnn(self):
-            return self.has_rnn
 
         def load(self, params):
             self.separate = params.get('separate', False)
@@ -170,7 +161,6 @@ class A2CBuilder(NetworkBuilder):
             self.is_d2rl = params['mlp'].get('d2rl', False)
             self.norm_only_first_layer = params['mlp'].get('norm_only_first_layer', False)
             self.normalization = params.get('normalization', None)
-            self.has_rnn = 'rnn' in params
             self.has_space = 'space' in params
             self.central_value = params.get('central_value', False)
             self.joint_obs_actions_config = params.get('joint_obs_actions', None)

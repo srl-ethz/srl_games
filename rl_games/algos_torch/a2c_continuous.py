@@ -26,7 +26,6 @@ class A2CAgent(a2c_common.ContinuousA2CBase):
         self.model = self.network.build(build_config)
         self.model.to(self.ppo_device)
         self.states = None
-        self.init_rnn_from_model(self.model)
         self.last_lr = float(self.last_lr)
         self.bound_loss_type = self.config.get('bound_loss_type', 'bound') # 'regularisation' or 'bound'
         self.optimizer = optim.Adam(self.model.parameters(), float(self.last_lr), eps=1e-08, weight_decay=self.weight_decay)
@@ -34,7 +33,7 @@ class A2CAgent(a2c_common.ContinuousA2CBase):
         assert not self.has_central_value, "removed for rl_games_simplified"
         
         self.use_experimental_cv = self.config.get('use_experimental_cv', True)
-        self.dataset = datasets.PPODataset(self.batch_size, self.minibatch_size, self.is_discrete, self.is_rnn, self.ppo_device, self.seq_len)
+        self.dataset = datasets.PPODataset(self.batch_size, self.minibatch_size, self.is_discrete, self.ppo_device, self.seq_len)
         if self.normalize_value:
             self.value_mean_std = self.model.value_mean_std
 
@@ -72,7 +71,6 @@ class A2CAgent(a2c_common.ContinuousA2CBase):
             'obs' : obs_batch,
         }
 
-        rnn_masks = None
 
         with torch.cuda.amp.autocast(enabled=self.mixed_precision):
             res_dict = self.model(batch_dict)
@@ -90,8 +88,8 @@ class A2CAgent(a2c_common.ContinuousA2CBase):
 
             assert self.bound_loss_type == 'bound'
             b_loss = self.bound_loss(mu)
-            
-            losses, sum_mask = torch_ext.apply_masks([a_loss.unsqueeze(1), c_loss , entropy.unsqueeze(1), b_loss.unsqueeze(1)], rnn_masks)
+        
+            losses = [torch.mean(loss) for loss in [a_loss.unsqueeze(1), c_loss , entropy.unsqueeze(1), b_loss.unsqueeze(1)]]
             a_loss, c_loss, entropy, b_loss = losses[0], losses[1], losses[2], losses[3]
 
             loss = a_loss + 0.5 * c_loss * self.critic_coef - entropy * self.entropy_coef + b_loss * self.bounds_loss_coef
@@ -107,10 +105,7 @@ class A2CAgent(a2c_common.ContinuousA2CBase):
         self.trancate_gradients_and_step()
 
         with torch.no_grad():
-            reduce_kl = rnn_masks is None
-            kl_dist = torch_ext.policy_kl(mu.detach(), sigma.detach(), old_mu_batch, old_sigma_batch, reduce_kl)
-            if rnn_masks is not None:
-                kl_dist = (kl_dist * rnn_masks).sum() / rnn_masks.numel()  #/ sum_mask
+            kl_dist = torch_ext.policy_kl(mu.detach(), sigma.detach(), old_mu_batch, old_sigma_batch)
 
         # check that mu_start and mu are the same
         assert torch.allclose(mu_start, mu, atol=1e-5), 'mu_start and mu are not the same'
