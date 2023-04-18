@@ -220,8 +220,6 @@ class A2CBase(BaseAlgorithm):
 
         self.actor_loss_func = common_losses.actor_loss
 
-        self.is_tensor_obses = False
-
         self.last_rnn_indices = None
         self.last_state_indices = None
 
@@ -328,36 +326,16 @@ class A2CBase(BaseAlgorithm):
     def init_rnn_from_model(self, model):
         self.is_rnn = self.model.is_rnn()
 
-    def cast_obs(self, obs):
-        assert isinstance(obs, torch.Tensor)
-        self.is_tensor_obses = True
-        return obs
-
-    def obs_to_tensors(self, obs):
-        assert isinstance(obs, dict)
-        upd_obs = {}
-        for key, value in obs.items():
-            upd_obs[key] = self._obs_to_tensors_internal(value)
-        return upd_obs
-
-    def _obs_to_tensors_internal(self, obs):
-        assert not isinstance(obs, dict)
-        upd_obs = self.cast_obs(obs)
-        return upd_obs
-
-
     def env_step(self, actions):
         actions = self.preprocess_actions(actions)
         obs, rewards, dones, infos = self.vec_env.step(actions)
 
-        assert self.is_tensor_obses
         assert self.value_size == 1
         rewards = rewards.unsqueeze(1)
-        return self.obs_to_tensors(obs), rewards.to(self.ppo_device), dones.to(self.ppo_device), infos
+        return obs, rewards.to(self.ppo_device), dones.to(self.ppo_device), infos
 
     def env_reset(self):
         obs = self.vec_env.reset()
-        obs = self.obs_to_tensors(obs)
         return obs
 
     def discount_values(self, fdones, last_extrinsic_values, mb_fdones, mb_extrinsic_values, mb_rewards):
@@ -514,7 +492,7 @@ class A2CBase(BaseAlgorithm):
             shaped_rewards = self.rewards_shaper(rewards)
             # print(f"{shaped_rewards.mean()=}")
             if self.value_bootstrap and 'time_outs' in infos:
-                shaped_rewards += self.gamma * res_dict['values'] * self.cast_obs(infos['time_outs']).unsqueeze(1).float()
+                shaped_rewards += self.gamma * res_dict['values'] * infos['time_outs'].unsqueeze(1).float()
 
             self.experience_buffer.update_data('rewards', n, shaped_rewards)
 
