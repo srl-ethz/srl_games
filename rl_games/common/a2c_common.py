@@ -123,7 +123,6 @@ class A2CBase(BaseAlgorithm):
         self.e_clip = config['e_clip']
         self.clip_value = config['clip_value']
         self.network = config['network']
-        self.rewards_scale = config['reward_shaper']['scale_value']
         self.num_agents = self.env_info.get('agents', 1)
         self.horizon_length = config['horizon_length']
         self.seq_len = self.config.get('seq_length', 4)
@@ -409,12 +408,11 @@ class A2CBase(BaseAlgorithm):
 
             step_time += (step_time_end - step_time_start)
 
-            shaped_rewards = rewards * self.rewards_scale
             # print(f"{shaped_rewards.mean()=}")
             if self.value_bootstrap and 'time_outs' in infos:
-                shaped_rewards += self.gamma * res_dict['values'] * infos['time_outs'].unsqueeze(1).float()
+                rewards += self.gamma * res_dict['values'] * infos['time_outs'].unsqueeze(1).float()
 
-            self.experience_buffer.update_data('rewards', n, shaped_rewards)
+            self.experience_buffer.update_data('rewards', n, rewards)
 
             self.current_rewards += rewards
             self.current_lengths += 1
