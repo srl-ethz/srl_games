@@ -85,17 +85,12 @@ class A2CBuilder(NetworkBuilder):
             self.num_seqs = num_seqs = kwargs.pop('num_seqs', 1)
             NetworkBuilder.BaseNetwork.__init__(self)
             self.load(params)
-            self.actor_cnn = nn.Sequential()
-            self.critic_cnn = nn.Sequential()
             self.actor_mlp = nn.Sequential()
             self.critic_mlp = nn.Sequential()
             
-            assert not self.has_cnn
-            assert not self.has_rnn
             assert not self.central_value
 
-            mlp_input_shape = self._calc_input_size(input_shape, self.actor_cnn)
-            print(f"{mlp_input_shape=}")
+            mlp_input_shape = input_shape[0]
 
             in_mlp_shape = mlp_input_shape
             out_size = self.units[-1]
@@ -125,7 +120,6 @@ class A2CBuilder(NetworkBuilder):
             sigma_init_val = self.space_config['sigma_init']['val']
 
             self.sigma = nn.Parameter(sigma_init_val * torch.ones(actions_num, requires_grad=True, dtype=torch.float32), requires_grad=True)
-            print(f"{self.actor_cnn=}")
             print(f"{self.actor_mlp=}")
             print(f"{self.value=}")
             print(f"{self.mu=}")
@@ -144,7 +138,6 @@ class A2CBuilder(NetworkBuilder):
             dones = obs_dict.get('dones', None)
             bptt_len = obs_dict.get('bptt_len', 0)
             out = obs
-            out = self.actor_cnn(out)
             out = out.flatten(1)                
 
             out = self.actor_mlp(out)
@@ -171,7 +164,6 @@ class A2CBuilder(NetworkBuilder):
                 self.is_continuous = 'continuous'in params['space']
                 if self.is_continuous:
                     self.space_config = params['space']['continuous']
-            self.has_cnn = False
 
     def build(self, name, **kwargs):
         net = A2CBuilder.Network(self.params, **kwargs)
