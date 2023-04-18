@@ -37,7 +37,6 @@ class A2CAgent(a2c_common.ContinuousA2CBase):
         if self.normalize_value:
             self.value_mean_std = self.model.value_mean_std
 
-        self.has_value_loss = not self.has_phasic_policy_gradients
         self.algo_observer.after_init(self)
 
     def update_epoch(self):
@@ -62,7 +61,6 @@ class A2CAgent(a2c_common.ContinuousA2CBase):
         actions_batch = input_dict['actions']
         obs_batch = input_dict['obs']
 
-        lr_mul = 1.0
         curr_e_clip = self.e_clip
 
         batch_dict = {
@@ -101,10 +99,8 @@ class A2CAgent(a2c_common.ContinuousA2CBase):
         with torch.no_grad():
             kl_dist = torch_ext.policy_kl(mu.detach(), sigma.detach(), old_mu_batch, old_sigma_batch)
 
-        # check that mu_start and mu are the same
-        assert torch.allclose(mu_start, mu, atol=1e-5), 'mu_start and mu are not the same'
-        self.train_result = (a_loss, c_loss, entropy, \
-            kl_dist, self.last_lr, lr_mul, \
+        return (a_loss, c_loss, entropy, \
+            kl_dist, self.last_lr, \
             mu.detach(), sigma.detach(), b_loss)
 
 

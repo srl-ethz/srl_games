@@ -10,10 +10,6 @@ class BaseAlgorithm(ABC):
         pass
 
     @abstractmethod
-    def clear_stats(self):
-        pass
-
-    @abstractmethod
     def train(self):
         pass
 

@@ -204,7 +204,8 @@ class A2CBase(BaseAlgorithm):
         builder = model_builder.ModelBuilder()
         self.config['network'] = builder.load(params)
 
-    def write_stats(self, total_time, epoch_num, step_time, play_time, update_time, a_losses, c_losses, entropies, kls, last_lr, lr_mul, frame, scaled_time, scaled_play_time, curr_frames):
+
+    def write_stats(self, total_time, epoch_num, step_time, play_time, update_time, a_losses, c_losses, entropies, kls, last_lr, frame, scaled_time, scaled_play_time, curr_frames):
         # do we need scaled time?
         self.writer.add_scalar('performance/step_inference_rl_update_fps', curr_frames / scaled_time, frame)
         self.writer.add_scalar('performance/step_inference_fps', curr_frames / scaled_play_time, frame)
@@ -216,9 +217,8 @@ class A2CBase(BaseAlgorithm):
         self.writer.add_scalar('losses/c_loss', torch_ext.mean_list(c_losses).item(), frame)
                 
         self.writer.add_scalar('losses/entropy', torch_ext.mean_list(entropies).item(), frame)
-        self.writer.add_scalar('info/last_lr', last_lr * lr_mul, frame)
-        self.writer.add_scalar('info/lr_mul', lr_mul, frame)
-        self.writer.add_scalar('info/e_clip', self.e_clip * lr_mul, frame)
+        self.writer.add_scalar('info/last_lr', last_lr, frame)
+        self.writer.add_scalar('info/e_clip', self.e_clip, frame)
         self.writer.add_scalar('info/kl', torch_ext.mean_list(kls).item(), frame)
         self.writer.add_scalar('info/epochs', epoch_num, frame)
         self.algo_observer.after_print_stats(frame, epoch_num, total_time)
