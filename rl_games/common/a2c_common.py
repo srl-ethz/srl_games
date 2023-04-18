@@ -32,13 +32,6 @@ def swap_and_flatten01(arr):
     s = arr.size()
     return arr.transpose(0, 1).reshape(s[0] * s[1], *s[2:])
 
-def rescale_actions(low, high, action):
-    d = (high - low) / 2.0
-    m = (high + low) / 2.0
-    scaled_action = action * d + m
-    return scaled_action
-
-
 def print_statistics(print_stats, curr_frames, step_time, step_inference_time, total_time, epoch_num, max_epochs, frame, max_frames):
     if print_stats:
         step_time = max(step_time, 1e-9)
@@ -312,11 +305,8 @@ class A2CBase(BaseAlgorithm):
         self.current_lengths = torch.zeros(batch_size, dtype=torch.float32, device=self.ppo_device)
         self.dones = torch.ones((batch_size,), dtype=torch.uint8, device=self.ppo_device)
 
-    def init_rnn_from_model(self, model):
-        self.is_rnn = self.model.is_rnn()
-
     def env_step(self, actions):
-        actions = self.preprocess_actions(actions)
+        actions = torch.clamp(actions, -1.0, 1.0)
         obs, rewards, dones, infos = self.vec_env.step(actions)
 
         assert self.value_size == 1
@@ -528,19 +518,12 @@ class ContinuousA2CBase(A2CBase):
         self.bounds_loss_coef = self.config.get('bounds_loss_coef', None)
 
         self.clip_actions = self.config.get('clip_actions', True)
+        assert self.clip_actions
 
         # todo introduce device instead of cuda()
         self.actions_low = torch.from_numpy(action_space.low.copy()).float().to(self.ppo_device)
         self.actions_high = torch.from_numpy(action_space.high.copy()).float().to(self.ppo_device)
 
-    def preprocess_actions(self, actions):
-        if self.clip_actions:
-            clamped_actions = torch.clamp(actions, -1.0, 1.0)
-            rescaled_actions = rescale_actions(self.actions_low, self.actions_high, clamped_actions)
-        else:
-            rescaled_actions = actions
-
-        return rescaled_actions
 
     def init_tensors(self):
         A2CBase.init_tensors(self)
