@@ -514,7 +514,7 @@ class ContinuousA2CBase(A2CBase):
 
             av_kls = torch_ext.mean_list(ep_kls)
             if self.schedule_type == 'standard':
-                self.last_lr, self.entropy_coef = self.scheduler.update(self.last_lr, self.entropy_coef, self.epoch_num, 0, av_kls.item())
+                self.last_lr = self.scheduler.update(self.last_lr, self.epoch_num, 0, av_kls.item())
                 self.update_lr(self.last_lr)
 
             kls.append(av_kls)
