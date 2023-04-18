@@ -210,11 +210,6 @@ class A2CBase(BaseAlgorithm):
         # features
         self.algo_observer = config['features']['observer']
 
-        self.soft_aug = config['features'].get('soft_augmentation', None)
-        self.has_soft_aug = self.soft_aug is not None
-        # soft augmentation not yet supported
-        assert not self.has_soft_aug
-
     def trancate_gradients_and_step(self):
         if self.truncate_grads:
             self.scaler.unscale_(self.optimizer)
