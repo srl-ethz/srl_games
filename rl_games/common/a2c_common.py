@@ -102,7 +102,6 @@ class A2CBase(BaseAlgorithm):
         self.value_size = self.env_info.get('value_size',1)
         self.observation_space = self.env_info['observation_space']
         self.weight_decay = config.get('weight_decay', 0.0)
-        self.use_action_masks = config.get('use_action_masks', False)
         self.is_train = config.get('is_train', True)
 
         self.central_value_config = self.config.get('central_value_config', None)
@@ -304,7 +303,6 @@ class A2CBase(BaseAlgorithm):
             'num_actors' : self.num_actors,
             'horizon_length' : self.horizon_length,
             'has_central_value' : self.has_central_value,
-            'use_action_masks' : self.use_action_masks
         }
         self.experience_buffer = ExperienceBuffer(self.env_info, algo_info, self.ppo_device)
 
