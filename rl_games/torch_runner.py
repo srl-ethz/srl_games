@@ -8,7 +8,6 @@ import torch
 
 #from rl_games import envs
 from rl_games.common import object_factory
-from rl_games.common import tr_helpers
 
 from rl_games.algos_torch import a2c_continuous
 
@@ -44,7 +43,6 @@ class Runner:
             random.seed(self.seed)
 
         config = params['config']
-        config['reward_shaper'] = tr_helpers.DefaultRewardsShaper(**config['reward_shaper'])
         if 'features' not in config:
             config['features'] = {}
         config['features']['observer'] = self.algo_observer
