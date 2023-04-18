@@ -6,7 +6,6 @@ from rl_games.common import vecenv
 from rl_games.algos_torch import torch_ext
 from rl_games.common import schedulers
 from rl_games.common.experience import ExperienceBuffer
-from rl_games.common.diagnostics import DefaultDiagnostics
 from rl_games.algos_torch import  model_builder
 from rl_games.interfaces.base_algorithm import  BaseAlgorithm
 import numpy as np
@@ -84,13 +83,6 @@ class A2CBase(BaseAlgorithm):
         self.rank_size = 1
         self.curr_frames = 0
 
-
-        self.use_diagnostics = config.get('use_diagnostics', False)
-
-        if self.use_diagnostics and self.rank == 0:
-            self.diagnostics = PpoDiagnostics()
-        else:
-            self.diagnostics = DefaultDiagnostics()
 
         self.network_path = config.get('network_path', "./nn/")
         self.log_path = config.get('log_path', "runs/")
@@ -246,7 +238,6 @@ class A2CBase(BaseAlgorithm):
 
     def write_stats(self, total_time, epoch_num, step_time, play_time, update_time, a_losses, c_losses, entropies, kls, last_lr, lr_mul, frame, scaled_time, scaled_play_time, curr_frames):
         # do we need scaled time?
-        self.diagnostics.send_info(self.writer)
         self.writer.add_scalar('performance/step_inference_rl_update_fps', curr_frames / scaled_time, frame)
         self.writer.add_scalar('performance/step_inference_fps', curr_frames / scaled_play_time, frame)
         self.writer.add_scalar('performance/step_fps', curr_frames / step_time, frame)
@@ -600,7 +591,6 @@ class ContinuousA2CBase(A2CBase):
                 self.update_lr(self.last_lr)
 
             kls.append(av_kls)
-            self.diagnostics.mini_epoch(self, mini_ep)
             # check if it is in train mode
             # print(f"{self.model.running_mean_std.training}")
             if self.normalize_input:
@@ -674,7 +664,6 @@ class ContinuousA2CBase(A2CBase):
             should_exit = False
 
             if self.rank == 0:
-                self.diagnostics.epoch(self, current_epoch = epoch_num)
                 # do we need scaled_time?
                 scaled_time = self.num_agents * sum_time
                 scaled_play_time = self.num_agents * play_time

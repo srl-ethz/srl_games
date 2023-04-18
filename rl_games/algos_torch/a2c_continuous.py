@@ -112,14 +112,6 @@ class A2CAgent(a2c_common.ContinuousA2CBase):
             if rnn_masks is not None:
                 kl_dist = (kl_dist * rnn_masks).sum() / rnn_masks.numel()  #/ sum_mask
 
-        self.diagnostics.mini_batch(self,
-        {
-            'values' : value_preds_batch,
-            'returns' : return_batch,
-            'new_neglogp' : action_log_probs,
-            'old_neglogp' : old_action_log_probs_batch,
-            'masks' : rnn_masks
-        }, curr_e_clip, 0)      
         # check that mu_start and mu are the same
         assert torch.allclose(mu_start, mu, atol=1e-5), 'mu_start and mu are not the same'
         self.train_result = (a_loss, c_loss, entropy, \
