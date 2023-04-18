@@ -54,18 +54,12 @@ class A2CBase(BaseAlgorithm):
     def __init__(self, base_name, params):
 
         self.config = config = params['config']
-        pbt_str = ''
-        self.population_based_training = config.get('population_based_training', False)
-        assert not self.population_based_training, "removed in rl_games_simplified"
-
-        # This helps in PBT when we need to restart an experiment with the exact same name, rather than
-        # generating a new name with the timestamp every time.
         full_experiment_name = config.get('full_experiment_name', None)
         if full_experiment_name:
             print(f'Exact experiment name requested from command line: {full_experiment_name}')
             self.experiment_name = full_experiment_name
         else:
-            self.experiment_name = config['name'] + pbt_str + datetime.now().strftime("_%d-%H-%M-%S")
+            self.experiment_name = config['name'] + datetime.now().strftime("_%d-%H-%M-%S")
 
         self.config = config
         self.algo_observer = config['features']['observer']
