@@ -109,7 +109,6 @@ class A2CBase(BaseAlgorithm):
         self.save_freq = config.get('save_frequency', 0)
         self.save_best_after = config.get('save_best_after', 100)
         self.print_stats = config.get('print_stats', True)
-        self.rnn_states = None
         self.name = base_name
 
         self.ppo = config.get('ppo', True)
@@ -135,7 +134,6 @@ class A2CBase(BaseAlgorithm):
         self.horizon_length = config['horizon_length']
         self.seq_len = self.config.get('seq_length', 4)
         self.bptt_len = self.config.get('bptt_length', self.seq_len) # not used right now. Didn't show that it is usefull
-        self.zero_rnn_on_done = self.config.get('zero_rnn_on_done', True)
         self.normalize_advantage = config['normalize_advantage']
         self.normalize_rms_advantage = config.get('normalize_rms_advantage', False)
         self.normalize_input = self.config['normalize_input']
@@ -155,7 +153,6 @@ class A2CBase(BaseAlgorithm):
         self.game_rewards = torch_ext.AverageMeter(self.value_size, self.games_to_track).to(self.ppo_device)
         self.game_lengths = torch_ext.AverageMeter(1, self.games_to_track).to(self.ppo_device)
         self.obs = None
-        self.games_num = self.config['minibatch_size'] // self.seq_len # it is used only for current rnn implementation
         self.batch_size = self.horizon_length * self.num_actors * self.num_agents
         self.batch_size_envs = self.horizon_length * self.num_actors
         assert(('minibatch_size_per_env' in self.config) or ('minibatch_size' in self.config))
@@ -204,7 +201,6 @@ class A2CBase(BaseAlgorithm):
 
         self.actor_loss_func = common_losses.actor_loss
 
-        self.last_rnn_indices = None
         self.last_state_indices = None
 
         # features
@@ -257,7 +253,6 @@ class A2CBase(BaseAlgorithm):
             'is_train': False,
             'prev_actions': None, 
             'obs' : processed_obs,
-            'rnn_states' : self.rnn_states
         }
 
         with torch.no_grad():
@@ -272,7 +267,6 @@ class A2CBase(BaseAlgorithm):
                 'is_train': False,
                 'prev_actions': None, 
                 'obs' : processed_obs,
-                'rnn_states' : self.rnn_states
             }
             result = self.model(input_dict)
             value = result['values']
@@ -535,7 +529,6 @@ class ContinuousA2CBase(A2CBase):
 
         play_time_end = time.time()
         update_time_start = time.time()
-        rnn_masks = batch_dict.get('rnn_masks', None)
 
         self.model.train()
         self.curr_frames = batch_dict.pop('played_frames')
@@ -588,8 +581,6 @@ class ContinuousA2CBase(A2CBase):
         neglogpacs = batch_dict['neglogpacs']
         mus = batch_dict['mus']
         sigmas = batch_dict['sigmas']
-        rnn_states = batch_dict.get('rnn_states', None)
-        rnn_masks = batch_dict.get('rnn_masks', None)
 
         advantages = returns - values
 
@@ -614,8 +605,6 @@ class ContinuousA2CBase(A2CBase):
         dataset_dict['actions'] = actions
         dataset_dict['obs'] = obses
         dataset_dict['dones'] = dones
-        dataset_dict['rnn_states'] = rnn_states
-        dataset_dict['rnn_masks'] = rnn_masks
         dataset_dict['mu'] = mus
         dataset_dict['sigma'] = sigmas
 

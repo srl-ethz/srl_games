@@ -16,7 +16,6 @@ class PPODataset(Dataset):
         self.game_indexes = torch.arange(total_games, dtype=torch.long, device=self.device)
         self.flat_indexes = torch.arange(total_games * self.seq_len, dtype=torch.long, device=self.device).reshape(total_games, self.seq_len)
 
-        self.special_names = ['rnn_states']
 
     def update_values_dict(self, values_dict):
         self.values_dict = values_dict     
@@ -36,7 +35,7 @@ class PPODataset(Dataset):
         self.last_range = (start, end)
         input_dict = {}
         for k,v in self.values_dict.items():
-            if k not in self.special_names and v is not None:
+            if v is not None:
                 if type(v) is dict:
                     v_dict = { kd:vd[start:end] for kd, vd in v.items() }
                     input_dict[k] = v_dict
