@@ -6,7 +6,6 @@ from rl_games.common import vecenv
 from rl_games.algos_torch import torch_ext
 from rl_games.common import schedulers
 from rl_games.common.experience import ExperienceBuffer
-from rl_games.common.diagnostics import DefaultDiagnostics
 from rl_games.algos_torch import  model_builder
 from rl_games.interfaces.base_algorithm import  BaseAlgorithm
 import numpy as np
@@ -33,13 +32,6 @@ def swap_and_flatten01(arr):
     s = arr.size()
     return arr.transpose(0, 1).reshape(s[0] * s[1], *s[2:])
 
-def rescale_actions(low, high, action):
-    d = (high - low) / 2.0
-    m = (high + low) / 2.0
-    scaled_action = action * d + m
-    return scaled_action
-
-
 def print_statistics(print_stats, curr_frames, step_time, step_inference_time, total_time, epoch_num, max_epochs, frame, max_frames):
     if print_stats:
         step_time = max(step_time, 1e-9)
@@ -62,18 +54,12 @@ class A2CBase(BaseAlgorithm):
     def __init__(self, base_name, params):
 
         self.config = config = params['config']
-        pbt_str = ''
-        self.population_based_training = config.get('population_based_training', False)
-        assert not self.population_based_training, "removed in rl_games_simplified"
-
-        # This helps in PBT when we need to restart an experiment with the exact same name, rather than
-        # generating a new name with the timestamp every time.
         full_experiment_name = config.get('full_experiment_name', None)
         if full_experiment_name:
             print(f'Exact experiment name requested from command line: {full_experiment_name}')
             self.experiment_name = full_experiment_name
         else:
-            self.experiment_name = config['name'] + pbt_str + datetime.now().strftime("_%d-%H-%M-%S")
+            self.experiment_name = config['name'] + datetime.now().strftime("_%d-%H-%M-%S")
 
         self.config = config
         self.algo_observer = config['features']['observer']
@@ -84,13 +70,6 @@ class A2CBase(BaseAlgorithm):
         self.rank_size = 1
         self.curr_frames = 0
 
-
-        self.use_diagnostics = config.get('use_diagnostics', False)
-
-        if self.use_diagnostics and self.rank == 0:
-            self.diagnostics = PpoDiagnostics()
-        else:
-            self.diagnostics = DefaultDiagnostics()
 
         self.network_path = config.get('network_path', "./nn/")
         self.log_path = config.get('log_path', "runs/")
@@ -110,7 +89,6 @@ class A2CBase(BaseAlgorithm):
         self.value_size = self.env_info.get('value_size',1)
         self.observation_space = self.env_info['observation_space']
         self.weight_decay = config.get('weight_decay', 0.0)
-        self.use_action_masks = config.get('use_action_masks', False)
         self.is_train = config.get('is_train', True)
 
         self.central_value_config = self.config.get('central_value_config', None)
@@ -125,7 +103,6 @@ class A2CBase(BaseAlgorithm):
         self.save_freq = config.get('save_frequency', 0)
         self.save_best_after = config.get('save_best_after', 100)
         self.print_stats = config.get('print_stats', True)
-        self.rnn_states = None
         self.name = base_name
 
         self.ppo = config.get('ppo', True)
@@ -146,18 +123,15 @@ class A2CBase(BaseAlgorithm):
         self.e_clip = config['e_clip']
         self.clip_value = config['clip_value']
         self.network = config['network']
-        self.rewards_shaper = config['reward_shaper']
         self.num_agents = self.env_info.get('agents', 1)
         self.horizon_length = config['horizon_length']
         self.seq_len = self.config.get('seq_length', 4)
         self.bptt_len = self.config.get('bptt_length', self.seq_len) # not used right now. Didn't show that it is usefull
-        self.zero_rnn_on_done = self.config.get('zero_rnn_on_done', True)
         self.normalize_advantage = config['normalize_advantage']
         self.normalize_rms_advantage = config.get('normalize_rms_advantage', False)
         self.normalize_input = self.config['normalize_input']
         self.normalize_value = self.config.get('normalize_value', False)
         self.truncate_grads = self.config.get('truncate_grads', False)
-        self.has_phasic_policy_gradients = False
 
         self.obs_shape = self.observation_space.shape
  
@@ -171,7 +145,6 @@ class A2CBase(BaseAlgorithm):
         self.game_rewards = torch_ext.AverageMeter(self.value_size, self.games_to_track).to(self.ppo_device)
         self.game_lengths = torch_ext.AverageMeter(1, self.games_to_track).to(self.ppo_device)
         self.obs = None
-        self.games_num = self.config['minibatch_size'] // self.seq_len # it is used only for current rnn implementation
         self.batch_size = self.horizon_length * self.num_actors * self.num_agents
         self.batch_size_envs = self.horizon_length * self.num_actors
         assert(('minibatch_size_per_env' in self.config) or ('minibatch_size' in self.config))
@@ -181,8 +154,6 @@ class A2CBase(BaseAlgorithm):
         self.num_minibatches = self.batch_size // self.minibatch_size
         assert(self.batch_size % self.minibatch_size == 0)
 
-        self.mixed_precision = self.config.get('mixed_precision', False)
-        self.scaler = torch.cuda.amp.GradScaler(enabled=self.mixed_precision)
 
         self.last_lr = self.config['learning_rate']
         self.frame = 0
@@ -210,45 +181,25 @@ class A2CBase(BaseAlgorithm):
 
         if self.rank == 0:
             writer = SummaryWriter(self.summaries_dir)
-            assert not self.population_based_training, "removed in rl_games_simplified"
             self.writer = writer
         else:
             self.writer = None
 
         self.value_bootstrap = self.config.get('value_bootstrap')
-        self.use_smooth_clamp = self.config.get('use_smooth_clamp', False)
 
-        self.actor_loss_func = common_losses.actor_loss
-
-        self.is_tensor_obses = False
-
-        self.last_rnn_indices = None
         self.last_state_indices = None
 
         # features
         self.algo_observer = config['features']['observer']
 
-        self.soft_aug = config['features'].get('soft_augmentation', None)
-        self.has_soft_aug = self.soft_aug is not None
-        # soft augmentation not yet supported
-        assert not self.has_soft_aug
-
-    def trancate_gradients_and_step(self):
-        if self.truncate_grads:
-            self.scaler.unscale_(self.optimizer)
-            nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_norm)
-
-        self.scaler.step(self.optimizer)
-        self.scaler.update()
 
     def load_networks(self, params):
         builder = model_builder.ModelBuilder()
         self.config['network'] = builder.load(params)
-        has_central_value_net = self.config.get('central_value_config') is not  None
 
-    def write_stats(self, total_time, epoch_num, step_time, play_time, update_time, a_losses, c_losses, entropies, kls, last_lr, lr_mul, frame, scaled_time, scaled_play_time, curr_frames):
+
+    def write_stats(self, total_time, epoch_num, step_time, play_time, update_time, a_losses, c_losses, entropies, kls, last_lr, frame, scaled_time, scaled_play_time, curr_frames):
         # do we need scaled time?
-        self.diagnostics.send_info(self.writer)
         self.writer.add_scalar('performance/step_inference_rl_update_fps', curr_frames / scaled_time, frame)
         self.writer.add_scalar('performance/step_inference_fps', curr_frames / scaled_play_time, frame)
         self.writer.add_scalar('performance/step_fps', curr_frames / step_time, frame)
@@ -259,9 +210,8 @@ class A2CBase(BaseAlgorithm):
         self.writer.add_scalar('losses/c_loss', torch_ext.mean_list(c_losses).item(), frame)
                 
         self.writer.add_scalar('losses/entropy', torch_ext.mean_list(entropies).item(), frame)
-        self.writer.add_scalar('info/last_lr', last_lr * lr_mul, frame)
-        self.writer.add_scalar('info/lr_mul', lr_mul, frame)
-        self.writer.add_scalar('info/e_clip', self.e_clip * lr_mul, frame)
+        self.writer.add_scalar('info/last_lr', last_lr, frame)
+        self.writer.add_scalar('info/e_clip', self.e_clip, frame)
         self.writer.add_scalar('info/kl', torch_ext.mean_list(kls).item(), frame)
         self.writer.add_scalar('info/epochs', epoch_num, frame)
         self.algo_observer.after_print_stats(frame, epoch_num, total_time)
@@ -271,17 +221,16 @@ class A2CBase(BaseAlgorithm):
         for param_group in self.optimizer.param_groups:
             param_group['lr'] = lr
         
-        #if self.has_central_value:
-        #    self.central_value_net.update_lr(lr)
+
+
 
     def get_action_values(self, obs):
-        processed_obs = obs['obs']
+
         self.model.eval()
         input_dict = {
             'is_train': False,
             'prev_actions': None, 
-            'obs' : processed_obs,
-            'rnn_states' : self.rnn_states
+            'obs' : obs['obs'],
         }
 
         with torch.no_grad():
@@ -291,12 +240,11 @@ class A2CBase(BaseAlgorithm):
     def get_values(self, obs):
         with torch.no_grad():
             self.model.eval()
-            processed_obs = obs['obs']
+
             input_dict = {
                 'is_train': False,
                 'prev_actions': None, 
-                'obs' : processed_obs,
-                'rnn_states' : self.rnn_states
+                'obs' : obs['obs'],
             }
             result = self.model(input_dict)
             value = result['values']
@@ -315,7 +263,6 @@ class A2CBase(BaseAlgorithm):
             'num_actors' : self.num_actors,
             'horizon_length' : self.horizon_length,
             'has_central_value' : self.has_central_value,
-            'use_action_masks' : self.use_action_masks
         }
         self.experience_buffer = ExperienceBuffer(self.env_info, algo_info, self.ppo_device)
 
@@ -325,39 +272,16 @@ class A2CBase(BaseAlgorithm):
         self.current_lengths = torch.zeros(batch_size, dtype=torch.float32, device=self.ppo_device)
         self.dones = torch.ones((batch_size,), dtype=torch.uint8, device=self.ppo_device)
 
-    def init_rnn_from_model(self, model):
-        self.is_rnn = self.model.is_rnn()
-
-    def cast_obs(self, obs):
-        assert isinstance(obs, torch.Tensor)
-        self.is_tensor_obses = True
-        return obs
-
-    def obs_to_tensors(self, obs):
-        assert isinstance(obs, dict)
-        upd_obs = {}
-        for key, value in obs.items():
-            upd_obs[key] = self._obs_to_tensors_internal(value)
-        return upd_obs
-
-    def _obs_to_tensors_internal(self, obs):
-        assert not isinstance(obs, dict)
-        upd_obs = self.cast_obs(obs)
-        return upd_obs
-
-
     def env_step(self, actions):
-        actions = self.preprocess_actions(actions)
+        actions = torch.clamp(actions, -1.0, 1.0)
         obs, rewards, dones, infos = self.vec_env.step(actions)
 
-        assert self.is_tensor_obses
         assert self.value_size == 1
         rewards = rewards.unsqueeze(1)
-        return self.obs_to_tensors(obs), rewards.to(self.ppo_device), dones.to(self.ppo_device), infos
+        return obs, rewards.to(self.ppo_device), dones.to(self.ppo_device), infos
 
     def env_reset(self):
         obs = self.vec_env.reset()
-        obs = self.obs_to_tensors(obs)
         return obs
 
     def discount_values(self, fdones, last_extrinsic_values, mb_fdones, mb_extrinsic_values, mb_rewards):
@@ -376,29 +300,6 @@ class A2CBase(BaseAlgorithm):
             delta = mb_rewards[t] + self.gamma * nextvalues * nextnonterminal - mb_extrinsic_values[t]
             mb_advs[t] = lastgaelam = delta + self.gamma * self.tau * nextnonterminal * lastgaelam
         return mb_advs
-
-    def discount_values_masks(self, fdones, last_extrinsic_values, mb_fdones, mb_extrinsic_values, mb_rewards, mb_masks):
-        lastgaelam = 0
-        mb_advs = torch.zeros_like(mb_rewards)
-        for t in reversed(range(self.horizon_length)):
-            if t == self.horizon_length - 1:
-                nextnonterminal = 1.0 - fdones
-                nextvalues = last_extrinsic_values
-            else:
-                nextnonterminal = 1.0 - mb_fdones[t+1]
-                nextvalues = mb_extrinsic_values[t+1]
-            nextnonterminal = nextnonterminal.unsqueeze(1)
-            masks_t = mb_masks[t].unsqueeze(1)
-            delta = (mb_rewards[t] + self.gamma * nextvalues * nextnonterminal  - mb_extrinsic_values[t])
-            mb_advs[t] = lastgaelam = (delta + self.gamma * self.tau * nextnonterminal * lastgaelam) * masks_t
-        return mb_advs
-
-    def clear_stats(self):
-        batch_size = self.num_agents * self.num_actors
-        self.game_rewards.clear()
-        self.game_lengths.clear()
-        self.mean_rewards = self.last_mean_rewards = -100500
-        self.algo_observer.after_clear_stats()
 
     def update_epoch(self):
         pass
@@ -464,8 +365,6 @@ class A2CBase(BaseAlgorithm):
 
     def get_stats_weights(self, model_stats=False):
         state = {}
-        if self.mixed_precision:
-            state['scaler'] = self.scaler.state_dict()
         if self.has_central_value:
             state['central_val_stats'] = self.central_value_net.get_stats_weights(model_stats)
         if model_stats:
@@ -483,8 +382,6 @@ class A2CBase(BaseAlgorithm):
             self.model.running_mean_std.load_state_dict(weights['running_mean_std'])
         if self.normalize_value and 'normalize_value' in weights:
             self.model.value_mean_std.load_state_dict(weights['reward_mean_std'])
-        if self.mixed_precision and 'scaler' in weights:
-            self.scaler.load_state_dict(weights['scaler'])
 
     def set_weights(self, weights):
         self.model.load_state_dict(weights['model'])
@@ -511,12 +408,11 @@ class A2CBase(BaseAlgorithm):
 
             step_time += (step_time_end - step_time_start)
 
-            shaped_rewards = self.rewards_shaper(rewards)
             # print(f"{shaped_rewards.mean()=}")
             if self.value_bootstrap and 'time_outs' in infos:
-                shaped_rewards += self.gamma * res_dict['values'] * self.cast_obs(infos['time_outs']).unsqueeze(1).float()
+                rewards += self.gamma * res_dict['values'] * infos['time_outs'].unsqueeze(1).float()
 
-            self.experience_buffer.update_data('rewards', n, shaped_rewards)
+            self.experience_buffer.update_data('rewards', n, rewards)
 
             self.current_rewards += rewards
             self.current_lengths += 1
@@ -561,19 +457,12 @@ class ContinuousA2CBase(A2CBase):
         self.bounds_loss_coef = self.config.get('bounds_loss_coef', None)
 
         self.clip_actions = self.config.get('clip_actions', True)
+        assert self.clip_actions
 
         # todo introduce device instead of cuda()
         self.actions_low = torch.from_numpy(action_space.low.copy()).float().to(self.ppo_device)
         self.actions_high = torch.from_numpy(action_space.high.copy()).float().to(self.ppo_device)
 
-    def preprocess_actions(self, actions):
-        if self.clip_actions:
-            clamped_actions = torch.clamp(actions, -1.0, 1.0)
-            rescaled_actions = rescale_actions(self.actions_low, self.actions_high, clamped_actions)
-        else:
-            rescaled_actions = actions
-
-        return rescaled_actions
 
     def init_tensors(self):
         A2CBase.init_tensors(self)
@@ -590,7 +479,6 @@ class ContinuousA2CBase(A2CBase):
 
         play_time_end = time.time()
         update_time_start = time.time()
-        rnn_masks = batch_dict.get('rnn_masks', None)
 
         self.model.train()
         self.curr_frames = batch_dict.pop('played_frames')
@@ -602,11 +490,13 @@ class ContinuousA2CBase(A2CBase):
         entropies = []
         kls = []
 
+        assert self.mini_epochs_num == 5
         for mini_ep in range(0, self.mini_epochs_num):
             ep_kls = []
             # print(len(self.dataset))
+            assert len(self.dataset) == 8
             for i in range(len(self.dataset)):
-                a_loss, c_loss, entropy, kl, last_lr, lr_mul, cmu, csigma, b_loss = self.train_actor_critic(self.dataset[i])
+                a_loss, c_loss, entropy, kl, last_lr, cmu, csigma, b_loss = self.train_actor_critic(self.dataset[i])
                 a_losses.append(a_loss)
                 c_losses.append(c_loss)
                 ep_kls.append(kl)
@@ -618,11 +508,10 @@ class ContinuousA2CBase(A2CBase):
 
             av_kls = torch_ext.mean_list(ep_kls)
             if self.schedule_type == 'standard':
-                self.last_lr, self.entropy_coef = self.scheduler.update(self.last_lr, self.entropy_coef, self.epoch_num, 0, av_kls.item())
+                self.last_lr = self.scheduler.update(self.last_lr, self.epoch_num, 0, av_kls.item())
                 self.update_lr(self.last_lr)
 
             kls.append(av_kls)
-            self.diagnostics.mini_epoch(self, mini_ep)
             # check if it is in train mode
             # print(f"{self.model.running_mean_std.training}")
             if self.normalize_input:
@@ -633,7 +522,7 @@ class ContinuousA2CBase(A2CBase):
         update_time = update_time_end - update_time_start
         total_time = update_time_end - play_time_start
 
-        return batch_dict['step_time'], play_time, update_time, total_time, a_losses, c_losses, b_losses, entropies, kls, last_lr, lr_mul
+        return batch_dict['step_time'], play_time, update_time, total_time, a_losses, c_losses, b_losses, entropies, kls, last_lr
 
     def prepare_dataset(self, batch_dict):
         obses = batch_dict['obses']
@@ -644,8 +533,6 @@ class ContinuousA2CBase(A2CBase):
         neglogpacs = batch_dict['neglogpacs']
         mus = batch_dict['mus']
         sigmas = batch_dict['sigmas']
-        rnn_states = batch_dict.get('rnn_states', None)
-        rnn_masks = batch_dict.get('rnn_masks', None)
 
         advantages = returns - values
 
@@ -670,8 +557,6 @@ class ContinuousA2CBase(A2CBase):
         dataset_dict['actions'] = actions
         dataset_dict['obs'] = obses
         dataset_dict['dones'] = dones
-        dataset_dict['rnn_states'] = rnn_states
-        dataset_dict['rnn_masks'] = rnn_masks
         dataset_dict['mu'] = mus
         dataset_dict['sigma'] = sigmas
 
@@ -687,7 +572,7 @@ class ContinuousA2CBase(A2CBase):
         self.curr_frames = self.batch_size_envs
         while True:
             epoch_num = self.update_epoch()
-            step_time, play_time, update_time, sum_time, a_losses, c_losses, b_losses, entropies, kls, last_lr, lr_mul = self.train_epoch()
+            step_time, play_time, update_time, sum_time, a_losses, c_losses, b_losses, entropies, kls, last_lr = self.train_epoch()
             total_time += sum_time
             frame = self.frame // self.num_agents
 
@@ -696,7 +581,6 @@ class ContinuousA2CBase(A2CBase):
             should_exit = False
 
             if self.rank == 0:
-                self.diagnostics.epoch(self, current_epoch = epoch_num)
                 # do we need scaled_time?
                 scaled_time = self.num_agents * sum_time
                 scaled_play_time = self.num_agents * play_time
@@ -707,7 +591,7 @@ class ContinuousA2CBase(A2CBase):
                                 epoch_num, self.max_epochs, frame, self.max_frames)
 
                 self.write_stats(total_time, epoch_num, step_time, play_time, update_time,
-                                a_losses, c_losses, entropies, kls, last_lr, lr_mul, frame,
+                                a_losses, c_losses, entropies, kls, last_lr, frame,
                                 scaled_time, scaled_play_time, curr_frames)
 
                 if len(b_losses) > 0:

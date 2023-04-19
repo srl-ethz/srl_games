@@ -8,10 +8,8 @@ import torch
 
 #from rl_games import envs
 from rl_games.common import object_factory
-from rl_games.common import tr_helpers
 
 from rl_games.algos_torch import a2c_continuous
-from rl_games.common.algo_observer import DefaultAlgoObserver
 
 class Runner:
     def __init__(self, algo_observer=None):
@@ -19,7 +17,7 @@ class Runner:
         self.algo_factory.register_builder('a2c_continuous', lambda **kwargs : a2c_continuous.A2CAgent(**kwargs))
         #self.algo_factory.register_builder('dqn', lambda **kwargs : dqnagent.DQNAgent(**kwargs))
 
-        self.algo_observer = algo_observer if algo_observer else DefaultAlgoObserver()
+        self.algo_observer = algo_observer
         torch.backends.cudnn.benchmark = True
         ### it didnot help for lots for openai gym envs anyway :(
         #torch.backends.cudnn.deterministic = True
@@ -45,7 +43,6 @@ class Runner:
             random.seed(self.seed)
 
         config = params['config']
-        config['reward_shaper'] = tr_helpers.DefaultRewardsShaper(**config['reward_shaper'])
         if 'features' not in config:
             config['features'] = {}
         config['features']['observer'] = self.algo_observer
