@@ -1,5 +1,3 @@
-import gym
-from gym.wrappers import FlattenObservation, FilterObservation
 import numpy as np
 import math
 

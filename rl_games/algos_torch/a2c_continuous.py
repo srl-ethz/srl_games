@@ -8,7 +8,6 @@ from torch import optim
 import torch 
 from torch import nn
 import numpy as np
-import gym
 
 class A2CAgent(a2c_common.ContinuousA2CBase):
     def __init__(self, base_name, params):

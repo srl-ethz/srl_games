@@ -10,7 +10,6 @@ from rl_games.algos_torch import  model_builder
 from rl_games.interfaces.base_algorithm import  BaseAlgorithm
 import numpy as np
 import time
-import gym
 
 from datetime import datetime
 from tensorboardX import SummaryWriter
@@ -254,9 +253,6 @@ class A2CBase(BaseAlgorithm):
     def device(self):
         return self.ppo_device
 
-    def reset_envs(self):
-        self.obs = self.env_reset()
-
     def init_tensors(self):
         batch_size = self.num_agents * self.num_actors
         algo_info = {
@@ -388,8 +384,6 @@ class A2CBase(BaseAlgorithm):
         self.set_stats_weights(weights)
 
     def play_steps(self):
-        update_list = self.update_list
-
         step_time = 0.0
 
         for n in range(self.horizon_length):
@@ -398,7 +392,7 @@ class A2CBase(BaseAlgorithm):
             self.experience_buffer.update_data('dones', n, self.dones)
             # print(f"{self.dones=}")
 
-            for k in update_list:
+            for k in self.update_list:
                 self.experience_buffer.update_data(k, n, res_dict[k]) 
 
             step_time_start = time.time()

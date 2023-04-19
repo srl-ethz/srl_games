@@ -2,7 +2,6 @@ import ray
 from rl_games.common.ivecenv import IVecEnv
 from rl_games.common.env_configurations import configurations
 import numpy as np
-import gym
 import random
 from time import sleep
 import torch

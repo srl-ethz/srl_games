@@ -134,11 +134,7 @@ class A2CBuilder(NetworkBuilder):
 
         def forward(self, obs_dict):
             obs = obs_dict['obs']
-            seq_length = obs_dict.get('seq_length', 1)
-            dones = obs_dict.get('dones', None)
-            bptt_len = obs_dict.get('bptt_len', 0)
-            out = obs
-            out = out.flatten(1)                
+            obs = obs.flatten(1)                
 
             out = self.actor_mlp(out)
             value = self.value(out)
@@ -156,7 +152,6 @@ class A2CBuilder(NetworkBuilder):
             self.normalization = params.get('normalization', None)
             self.has_space = 'space' in params
             self.central_value = params.get('central_value', False)
-            self.joint_obs_actions_config = params.get('joint_obs_actions', None)
 
             if self.has_space:
                 self.is_multi_discrete = 'multi_discrete'in params['space']
