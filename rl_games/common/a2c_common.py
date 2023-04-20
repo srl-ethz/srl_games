@@ -127,7 +127,6 @@ class A2CBase(BaseAlgorithm):
         self.normalize_rms_advantage = config.get('normalize_rms_advantage', False)
         self.normalize_input = self.config['normalize_input']
         self.normalize_value = self.config.get('normalize_value', False)
-        self.truncate_grads = self.config.get('truncate_grads', False)
 
         self.obs_shape = self.observation_space.shape
  
@@ -182,8 +181,6 @@ class A2CBase(BaseAlgorithm):
             self.writer = None
 
         self.value_bootstrap = self.config.get('value_bootstrap')
-
-        self.last_state_indices = None
 
         # features
         self.algo_observer = config['features']['observer']
@@ -255,7 +252,6 @@ class A2CBase(BaseAlgorithm):
         algo_info = {
             'num_actors' : self.num_actors,
             'horizon_length' : self.horizon_length,
-            'has_central_value' : self.has_central_value,
         }
         self.experience_buffer = ExperienceBuffer(self.env_info, algo_info, self.ppo_device)
 
