@@ -45,7 +45,7 @@ class NetworkBuilder:
             for unit in units:
                 layers.append(torch.nn.Linear(input_size, unit))
                 layers.append(self.activations_factory.create(activation))
-                in_size = unit
+                input_size = unit
 
             return nn.Sequential(*layers)
 
