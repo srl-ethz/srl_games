@@ -136,7 +136,7 @@ class A2CBuilder(NetworkBuilder):
             obs = obs_dict['obs']
             obs = obs.flatten(1)                
 
-            out = self.actor_mlp(out)
+            out = self.actor_mlp(obs)
             value = self.value(out)
 
             mu = self.mu(out)
