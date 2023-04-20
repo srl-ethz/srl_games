@@ -15,20 +15,18 @@ class BaseModel():
         obs_shape = config['input_shape']
         normalize_value = config.get('normalize_value', False)
         normalize_input = config.get('normalize_input', False)
-        value_size = config.get('value_size', 1)
         return self.Network(self.network_builder.build(self.model_class, **config), obs_shape=obs_shape,
-            normalize_value=normalize_value, normalize_input=normalize_input, value_size=value_size)
+            normalize_value=normalize_value, normalize_input=normalize_input)
 
 class BaseModelNetwork(nn.Module):
-    def __init__(self, obs_shape, normalize_value, normalize_input, value_size):
+    def __init__(self, obs_shape, normalize_value, normalize_input):
         nn.Module.__init__(self)
         self.obs_shape = obs_shape
         self.normalize_value = normalize_value
         self.normalize_input = normalize_input
-        self.value_size = value_size
 
         if normalize_value:
-            self.value_mean_std = RunningMeanStd((self.value_size,))
+            self.value_mean_std = RunningMeanStd((1,))
         if normalize_input:
             assert not isinstance(obs_shape, dict), "function removed in rl_games_simplified"
             self.running_mean_std = RunningMeanStd(obs_shape)

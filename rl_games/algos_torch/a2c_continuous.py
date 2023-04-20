@@ -16,8 +16,6 @@ class A2CAgent(a2c_common.ContinuousA2CBase):
         build_config = {
             'actions_num' : self.actions_num,
             'input_shape' : obs_shape,
-            'num_seqs' : self.num_actors * self.num_agents,
-            'value_size': self.env_info.get('value_size',1),
             'normalize_value' : self.normalize_value,
             'normalize_input': self.normalize_input,
         }
@@ -29,9 +27,6 @@ class A2CAgent(a2c_common.ContinuousA2CBase):
         self.bound_loss_type = self.config.get('bound_loss_type', 'bound') # 'regularisation' or 'bound'
         self.optimizer = optim.Adam(self.model.parameters(), float(self.last_lr), eps=1e-08, weight_decay=self.weight_decay)
 
-        assert not self.has_central_value, "removed for rl_games_simplified"
-        
-        self.use_experimental_cv = self.config.get('use_experimental_cv', True)
         self.dataset = datasets.PPODataset(self.batch_size, self.minibatch_size, self.is_discrete, self.ppo_device)
         if self.normalize_value:
             self.value_mean_std = self.model.value_mean_std

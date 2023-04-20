@@ -39,22 +39,12 @@ class NetworkBuilder:
         input_size, 
         units, 
         activation,
-        dense_func,
-        norm_only_first_layer=False, 
-        norm_func_name = None):
+        ):
             print('build mlp:', input_size)
-            in_size = input_size
             layers = []
-            need_norm = True
             for unit in units:
-                layers.append(dense_func(in_size, unit))
+                layers.append(torch.nn.Linear(input_size, unit))
                 layers.append(self.activations_factory.create(activation))
-
-                if not need_norm:
-                    continue
-                if norm_only_first_layer and norm_func_name is not None:
-                   need_norm = False 
-                assert not norm_func_name in ['layer_norm', 'batch_norm']
                 in_size = unit
 
             return nn.Sequential(*layers)
@@ -63,12 +53,9 @@ class NetworkBuilder:
         input_size, 
         units, 
         activation,
-        dense_func, 
-        norm_only_first_layer=False,
-        norm_func_name = None,
         d2rl=False):
             assert not d2rl
-            return self._build_sequential_mlp(input_size, units, activation, dense_func, norm_func_name = None,)
+            return self._build_sequential_mlp(input_size, units, activation,)
 
 class A2CBuilder(NetworkBuilder):
     def __init__(self, **kwargs):
@@ -81,8 +68,6 @@ class A2CBuilder(NetworkBuilder):
         def __init__(self, params, **kwargs):
             actions_num = kwargs.pop('actions_num')
             input_shape = kwargs.pop('input_shape')
-            self.value_size = kwargs.pop('value_size', 1)
-            self.num_seqs = num_seqs = kwargs.pop('num_seqs', 1)
             NetworkBuilder.BaseNetwork.__init__(self)
             self.load(params)
             self.actor_mlp = nn.Sequential()
@@ -100,16 +85,13 @@ class A2CBuilder(NetworkBuilder):
                 'input_size' : in_mlp_shape, 
                 'units' : self.units, 
                 'activation' : self.activation, 
-                'norm_func_name' : self.normalization,
-                'dense_func' : torch.nn.Linear,
                 'd2rl' : self.is_d2rl,
-                'norm_only_first_layer' : self.norm_only_first_layer
             }
             self.actor_mlp = self._build_mlp(**mlp_args)
             if self.separate:
                 self.critic_mlp = self._build_mlp(**mlp_args)
 
-            self.value = torch.nn.Linear(out_size, self.value_size)
+            self.value = torch.nn.Linear(out_size, 1)
 
             '''
                 for multidiscrete actions num is a tuple
@@ -148,7 +130,6 @@ class A2CBuilder(NetworkBuilder):
             self.units = params['mlp']['units']
             self.activation = params['mlp']['activation']
             self.is_d2rl = params['mlp'].get('d2rl', False)
-            self.norm_only_first_layer = params['mlp'].get('norm_only_first_layer', False)
             self.normalization = params.get('normalization', None)
             self.has_space = 'space' in params
             self.central_value = params.get('central_value', False)

@@ -9,16 +9,14 @@ class RunningMeanStd(nn.Module):
     def __init__(self, insize, epsilon=1e-05, per_channel=False, norm_only=False):
         super(RunningMeanStd, self).__init__()
         print('RunningMeanStd: ', insize)
-        self.insize = insize
         self.epsilon = epsilon
 
         assert not norm_only
         assert not per_channel
         self.axis = [0]
-        in_size = insize
 
-        self.register_buffer("running_mean", torch.zeros(in_size, dtype = torch.float64))
-        self.register_buffer("running_var", torch.ones(in_size, dtype = torch.float64))
+        self.register_buffer("running_mean", torch.zeros(insize, dtype = torch.float64))
+        self.register_buffer("running_var", torch.ones(insize, dtype = torch.float64))
         self.register_buffer("count", torch.ones((), dtype = torch.float64))
 
     def _update_mean_var_count_from_moments(self, mean, var, count, batch_mean, batch_var, batch_count):
