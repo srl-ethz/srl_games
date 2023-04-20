@@ -3,18 +3,13 @@ import copy
 from torch.utils.data import Dataset
 
 class PPODataset(Dataset):
-    def __init__(self, batch_size, minibatch_size, is_discrete, device, seq_len):
-        self.seq_len = seq_len
+    def __init__(self, batch_size, minibatch_size, is_discrete, device):
         self.batch_size = batch_size
         self.minibatch_size = minibatch_size
         self.device = device
         self.length = self.batch_size // self.minibatch_size
         self.is_discrete = is_discrete
         self.is_continuous = not is_discrete
-        total_games = self.batch_size // self.seq_len
-        self.num_games_batch = self.minibatch_size // self.seq_len
-        self.game_indexes = torch.arange(total_games, dtype=torch.long, device=self.device)
-        self.flat_indexes = torch.arange(total_games * self.seq_len, dtype=torch.long, device=self.device).reshape(total_games, self.seq_len)
 
 
     def update_values_dict(self, values_dict):

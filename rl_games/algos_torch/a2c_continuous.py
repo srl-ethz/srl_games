@@ -32,7 +32,7 @@ class A2CAgent(a2c_common.ContinuousA2CBase):
         assert not self.has_central_value, "removed for rl_games_simplified"
         
         self.use_experimental_cv = self.config.get('use_experimental_cv', True)
-        self.dataset = datasets.PPODataset(self.batch_size, self.minibatch_size, self.is_discrete, self.ppo_device, self.seq_len)
+        self.dataset = datasets.PPODataset(self.batch_size, self.minibatch_size, self.is_discrete, self.ppo_device)
         if self.normalize_value:
             self.value_mean_std = self.model.value_mean_std
 
