@@ -451,11 +451,6 @@ class ContinuousA2CBase(A2CBase):
         self.clip_actions = self.config.get('clip_actions', True)
         assert self.clip_actions
 
-        # todo introduce device instead of cuda()
-        self.actions_low = torch.from_numpy(action_space.low.copy()).float().to(self.ppo_device)
-        self.actions_high = torch.from_numpy(action_space.high.copy()).float().to(self.ppo_device)
-
-
     def init_tensors(self):
         A2CBase.init_tensors(self)
         self.update_list = ['actions', 'neglogpacs', 'values', 'mus', 'sigmas']
