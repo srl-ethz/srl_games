@@ -35,7 +35,6 @@ class RunningMeanStd(nn.Module):
 
     def forward(self, input, unnorm=False, mask=None):
         if self.training:
-            # print(f"updating mean and var with {input.shape}")
             assert not unnorm
             assert mask is None
             mean = input.mean(self.axis) # along channel axis
