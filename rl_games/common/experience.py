@@ -58,9 +58,6 @@ class ExperienceBuffer:
         else:
             self.tensor_dict[name][index,:] = val
 
-
-
-
     def get_transformed_list(self, transform_op, tensor_list):
         res_dict = {}
         for k in tensor_list:

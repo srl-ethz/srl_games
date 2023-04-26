@@ -42,6 +42,8 @@ class NetworkBuilder:
         dense_func,
         norm_only_first_layer=False, 
         norm_func_name = None):
+            assert not norm_only_first_layer
+            assert norm_func_name is None
             print('build mlp:', input_size)
             in_size = input_size
             layers = []
@@ -49,12 +51,6 @@ class NetworkBuilder:
             for unit in units:
                 layers.append(dense_func(in_size, unit))
                 layers.append(self.activations_factory.create(activation))
-
-                if not need_norm:
-                    continue
-                if norm_only_first_layer and norm_func_name is not None:
-                   need_norm = False 
-                assert not norm_func_name in ['layer_norm', 'batch_norm']
                 in_size = unit
 
             return nn.Sequential(*layers)
@@ -134,13 +130,9 @@ class A2CBuilder(NetworkBuilder):
 
         def forward(self, obs_dict):
             obs = obs_dict['obs']
-            seq_length = obs_dict.get('seq_length', 1)
-            dones = obs_dict.get('dones', None)
-            bptt_len = obs_dict.get('bptt_len', 0)
-            out = obs
-            out = out.flatten(1)                
+            obs = obs.flatten(1)                
 
-            out = self.actor_mlp(out)
+            out = self.actor_mlp(obs)
             value = self.value(out)
 
             mu = self.mu(out)
@@ -152,11 +144,12 @@ class A2CBuilder(NetworkBuilder):
             self.units = params['mlp']['units']
             self.activation = params['mlp']['activation']
             self.is_d2rl = params['mlp'].get('d2rl', False)
+            assert not self.is_d2rl
             self.norm_only_first_layer = params['mlp'].get('norm_only_first_layer', False)
             self.normalization = params.get('normalization', None)
+            assert not 'rnn' in params
             self.has_space = 'space' in params
             self.central_value = params.get('central_value', False)
-            self.joint_obs_actions_config = params.get('joint_obs_actions', None)
 
             if self.has_space:
                 self.is_multi_discrete = 'multi_discrete'in params['space']
@@ -164,6 +157,7 @@ class A2CBuilder(NetworkBuilder):
                 self.is_continuous = 'continuous'in params['space']
                 if self.is_continuous:
                     self.space_config = params['space']['continuous']
+            assert not 'cnn' in params
 
     def build(self, name, **kwargs):
         net = A2CBuilder.Network(self.params, **kwargs)

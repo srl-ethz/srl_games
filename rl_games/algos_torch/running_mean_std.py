@@ -34,10 +34,9 @@ class RunningMeanStd(nn.Module):
         return new_mean, new_var, new_count
 
     def forward(self, input, unnorm=False, mask=None):
+        assert mask is None
         if self.training:
-            # print(f"updating mean and var with {input.shape}")
             assert not unnorm
-            assert mask is None
             mean = input.mean(self.axis) # along channel axis
             var = input.var(self.axis)
             self.running_mean, self.running_var, self.count = self._update_mean_var_count_from_moments(self.running_mean, self.running_var, self.count, 
