@@ -15,7 +15,8 @@ class Runner:
     def __init__(self, algo_observer=None):
         self.algo_factory = object_factory.ObjectFactory()
         self.algo_factory.register_builder('a2c_continuous', lambda **kwargs : a2c_continuous.A2CAgent(**kwargs))
-        #self.algo_factory.register_builder('dqn', lambda **kwargs : dqnagent.DQNAgent(**kwargs))
+
+        self.player_factory = object_factory.ObjectFactory()    
 
         self.algo_observer = algo_observer
         torch.backends.cudnn.benchmark = True
