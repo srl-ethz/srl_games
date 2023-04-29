@@ -15,6 +15,8 @@ class BaseModel():
         obs_shape = config['input_shape']
         normalize_value = config.get('normalize_value', False)
         normalize_input = config.get('normalize_input', False)
+        value_size = config.get('value_size', 1)
+        assert value_size == 1
         return self.Network(self.network_builder.build(self.model_class, **config), obs_shape=obs_shape,
             normalize_value=normalize_value, normalize_input=normalize_input)
 
