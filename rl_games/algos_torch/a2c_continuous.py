@@ -16,8 +16,6 @@ class A2CAgent(a2c_common.ContinuousA2CBase):
         build_config = {
             'actions_num' : self.actions_num,
             'input_shape' : obs_shape,
-            'num_seqs' : self.num_actors * self.num_agents,
-            'value_size': self.env_info.get('value_size',1),
             'normalize_value' : self.normalize_value,
             'normalize_input': self.normalize_input,
         }

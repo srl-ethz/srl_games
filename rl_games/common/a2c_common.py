@@ -85,7 +85,6 @@ class A2CBase(BaseAlgorithm):
             self.vec_env = config.get('vec_env', None)
 
         self.ppo_device = config.get('device', 'cuda:0')
-        self.value_size = self.env_info.get('value_size',1)
         self.observation_space = self.env_info['observation_space']
         self.weight_decay = config.get('weight_decay', 0.0)
         self.is_train = config.get('is_train', True)
@@ -131,7 +130,6 @@ class A2CBase(BaseAlgorithm):
         assert not self.normalize_rms_advantage
         self.normalize_input = self.config['normalize_input']
         self.normalize_value = self.config.get('normalize_value', False)
-        self.truncate_grads = self.config.get('truncate_grads', False)
 
         self.obs_shape = self.observation_space.shape
  
@@ -142,7 +140,7 @@ class A2CBase(BaseAlgorithm):
 
         self.games_to_track = self.config.get('games_to_track', 100)
         print('current training device:', self.ppo_device)
-        self.game_rewards = torch_ext.AverageMeter(self.value_size, self.games_to_track).to(self.ppo_device)
+        self.game_rewards = torch_ext.AverageMeter(1, self.games_to_track).to(self.ppo_device)
         self.game_lengths = torch_ext.AverageMeter(1, self.games_to_track).to(self.ppo_device)
         self.obs = None
         self.batch_size = self.horizon_length * self.num_actors * self.num_agents
@@ -186,8 +184,6 @@ class A2CBase(BaseAlgorithm):
             self.writer = None
 
         self.value_bootstrap = self.config.get('value_bootstrap')
-
-        self.last_state_indices = None
 
         # features
         self.algo_observer = config['features']['observer']
@@ -259,12 +255,11 @@ class A2CBase(BaseAlgorithm):
         algo_info = {
             'num_actors' : self.num_actors,
             'horizon_length' : self.horizon_length,
-            'has_central_value' : self.has_central_value,
         }
         self.experience_buffer = ExperienceBuffer(self.env_info, algo_info, self.ppo_device)
 
-        val_shape = (self.horizon_length, batch_size, self.value_size)
-        current_rewards_shape = (batch_size, self.value_size)
+        val_shape = (self.horizon_length, batch_size, 1)
+        current_rewards_shape = (batch_size, 1)
         self.current_rewards = torch.zeros(current_rewards_shape, dtype=torch.float32, device=self.ppo_device)
         self.current_lengths = torch.zeros(batch_size, dtype=torch.float32, device=self.ppo_device)
         self.dones = torch.ones((batch_size,), dtype=torch.uint8, device=self.ppo_device)
@@ -273,7 +268,6 @@ class A2CBase(BaseAlgorithm):
         actions = torch.clamp(actions, -1.0, 1.0)
         obs, rewards, dones, infos = self.vec_env.step(actions)
 
-        assert self.value_size == 1
         rewards = rewards.unsqueeze(1)
         return obs, rewards.to(self.ppo_device), dones.to(self.ppo_device), infos
 
@@ -579,11 +573,10 @@ class ContinuousA2CBase(A2CBase):
                     mean_lengths = self.game_lengths.get_mean()
                     self.mean_rewards = mean_rewards[0]
 
-                    for i in range(self.value_size):
-                        rewards_name = 'rewards' if i == 0 else 'rewards{0}'.format(i)
-                        self.writer.add_scalar(rewards_name + '/step'.format(i), mean_rewards[i], frame)
-                        self.writer.add_scalar(rewards_name + '/iter'.format(i), mean_rewards[i], epoch_num)
-                        self.writer.add_scalar(rewards_name + '/time'.format(i), mean_rewards[i], total_time)
+                    rewards_name = 'rewards'
+                    self.writer.add_scalar(rewards_name + '/step', self.mean_rewards, frame)
+                    self.writer.add_scalar(rewards_name + '/iter', self.mean_rewards, epoch_num)
+                    self.writer.add_scalar(rewards_name + '/time', self.mean_rewards, total_time)
 
                     self.writer.add_scalar('episode_lengths/step', mean_lengths, frame)
                     self.writer.add_scalar('episode_lengths/iter', mean_lengths, epoch_num)
