@@ -6,6 +6,13 @@ from rl_games.algos_torch import models
 NETWORK_REGISTRY = {}
 MODEL_REGISTRY = {}
 
+# these functions are just needed to maintain compatibility with IsaacGymEnvs
+def register_network(name, target_class):
+    pass
+
+def register_model(name, target_class):
+    pass
+
 class NetworkBuilder:
     def __init__(self):
         self.network_factory = object_factory.ObjectFactory()

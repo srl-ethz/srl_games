@@ -39,7 +39,11 @@ class NetworkBuilder:
         input_size, 
         units, 
         activation,
-        ):
+        dense_func,
+        norm_only_first_layer=False, 
+        norm_func_name = None):
+            assert not norm_only_first_layer
+            assert norm_func_name is None
             print('build mlp:', input_size)
             layers = []
             for unit in units:
@@ -130,7 +134,10 @@ class A2CBuilder(NetworkBuilder):
             self.units = params['mlp']['units']
             self.activation = params['mlp']['activation']
             self.is_d2rl = params['mlp'].get('d2rl', False)
+            assert not self.is_d2rl
+            self.norm_only_first_layer = params['mlp'].get('norm_only_first_layer', False)
             self.normalization = params.get('normalization', None)
+            assert not 'rnn' in params
             self.has_space = 'space' in params
             self.central_value = params.get('central_value', False)
 
@@ -140,6 +147,7 @@ class A2CBuilder(NetworkBuilder):
                 self.is_continuous = 'continuous'in params['space']
                 if self.is_continuous:
                     self.space_config = params['space']['continuous']
+            assert not 'cnn' in params
 
     def build(self, name, **kwargs):
         net = A2CBuilder.Network(self.params, **kwargs)

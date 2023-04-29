@@ -90,7 +90,9 @@ class A2CBase(BaseAlgorithm):
         self.is_train = config.get('is_train', True)
 
         self.central_value_config = self.config.get('central_value_config', None)
+        assert self.central_value_config is None
         self.has_central_value = self.central_value_config is not None
+        assert not self.has_central_value
         self.truncate_grads = self.config.get('truncate_grads', False)
 
 
@@ -125,6 +127,7 @@ class A2CBase(BaseAlgorithm):
         self.horizon_length = config['horizon_length']
         self.normalize_advantage = config['normalize_advantage']
         self.normalize_rms_advantage = config.get('normalize_rms_advantage', False)
+        assert not self.normalize_rms_advantage
         self.normalize_input = self.config['normalize_input']
         self.normalize_value = self.config.get('normalize_value', False)
 
@@ -317,8 +320,6 @@ class A2CBase(BaseAlgorithm):
         state = self.get_weights()
         state['epoch'] = self.epoch_num
         state['optimizer'] = self.optimizer.state_dict()
-        if self.has_central_value:
-            state['assymetric_vf_nets'] = self.central_value_net.state_dict()
         state['frame'] = self.frame
 
         # This is actually the best reward ever achieved. last_mean_rewards is perhaps not the best variable name
@@ -334,8 +335,6 @@ class A2CBase(BaseAlgorithm):
     def set_full_state_weights(self, weights):
         self.set_weights(weights)
         self.epoch_num = weights['epoch'] # frames as well?
-        if self.has_central_value:
-            self.central_value_net.load_state_dict(weights['assymetric_vf_nets'])
 
         self.optimizer.load_state_dict(weights['optimizer'])
         self.frame = weights.get('frame', 0)
@@ -364,8 +363,6 @@ class A2CBase(BaseAlgorithm):
         return state
 
     def set_stats_weights(self, weights):
-        if self.normalize_rms_advantage:
-            self.advantage_mean_std.load_state_dic(weights['advantage_mean_std'])
         if self.normalize_input and 'running_mean_std' in weights:
             self.model.running_mean_std.load_state_dict(weights['running_mean_std'])
         if self.normalize_value and 'normalize_value' in weights:
@@ -382,19 +379,16 @@ class A2CBase(BaseAlgorithm):
             res_dict = self.get_action_values(self.obs)
             self.experience_buffer.update_data('obses', n, self.obs['obs'])
             self.experience_buffer.update_data('dones', n, self.dones)
-            # print(f"{self.dones=}")
 
             for k in self.update_list:
                 self.experience_buffer.update_data(k, n, res_dict[k]) 
 
             step_time_start = time.time()
             self.obs, rewards, self.dones, infos = self.env_step(res_dict['actions'])
-            # print(f"{rewards.mean()=}")
             step_time_end = time.time()
 
             step_time += (step_time_end - step_time_start)
 
-            # print(f"{shaped_rewards.mean()=}")
             if self.value_bootstrap and 'time_outs' in infos:
                 rewards += self.gamma * res_dict['values'] * infos['time_outs'].unsqueeze(1).float()
 
@@ -445,11 +439,6 @@ class ContinuousA2CBase(A2CBase):
         self.clip_actions = self.config.get('clip_actions', True)
         assert self.clip_actions
 
-        # todo introduce device instead of cuda()
-        self.actions_low = torch.from_numpy(action_space.low.copy()).float().to(self.ppo_device)
-        self.actions_high = torch.from_numpy(action_space.high.copy()).float().to(self.ppo_device)
-
-
     def init_tensors(self):
         A2CBase.init_tensors(self)
         self.update_list = ['actions', 'neglogpacs', 'values', 'mus', 'sigmas']
@@ -498,8 +487,6 @@ class ContinuousA2CBase(A2CBase):
                 self.update_lr(self.last_lr)
 
             kls.append(av_kls)
-            # check if it is in train mode
-            # print(f"{self.model.running_mean_std.training}")
             if self.normalize_input:
                 self.model.running_mean_std.eval() # don't need to update statstics more than one miniepoch
 
@@ -528,10 +515,8 @@ class ContinuousA2CBase(A2CBase):
             returns = self.value_mean_std(returns)
             self.value_mean_std.eval()
 
-        # print(f"{advantages.shape=}")
         advantages = torch.sum(advantages, axis=1)
 
-        # print(f"{advantages.shape=}")
         if self.normalize_advantage:
             advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 

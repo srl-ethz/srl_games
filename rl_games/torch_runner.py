@@ -15,7 +15,8 @@ class Runner:
     def __init__(self, algo_observer=None):
         self.algo_factory = object_factory.ObjectFactory()
         self.algo_factory.register_builder('a2c_continuous', lambda **kwargs : a2c_continuous.A2CAgent(**kwargs))
-        #self.algo_factory.register_builder('dqn', lambda **kwargs : dqnagent.DQNAgent(**kwargs))
+
+        self.player_factory = object_factory.ObjectFactory()    
 
         self.algo_observer = algo_observer
         torch.backends.cudnn.benchmark = True
@@ -43,6 +44,10 @@ class Runner:
             random.seed(self.seed)
 
         config = params['config']
+        reward_shaper_config = config['reward_shaper']
+        reward_shaper_errormsg = "srl_games does not support reward_shaper to avoid confusion, please adjust the reward scales within the environment config"
+        assert reward_shaper_config.get('scale_value', 1) == 1, reward_shaper_errormsg
+        assert reward_shaper_config.get('shift_value', 0) == 0, reward_shaper_errormsg
         if 'features' not in config:
             config['features'] = {}
         config['features']['observer'] = self.algo_observer
