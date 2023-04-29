@@ -39,7 +39,6 @@ class NetworkBuilder:
         input_size, 
         units, 
         activation,
-        dense_func,
         norm_only_first_layer=False, 
         norm_func_name = None):
             assert not norm_only_first_layer
@@ -59,7 +58,7 @@ class NetworkBuilder:
         activation,
         d2rl=False):
             assert not d2rl
-            return self._build_sequential_mlp(input_size, units, activation,)
+            return self._build_sequential_mlp(input_size, units, activation)
 
 class A2CBuilder(NetworkBuilder):
     def __init__(self, **kwargs):
